@@ -160,8 +160,14 @@ void PartyPopup::refresh() {
     setVisible(m_leaveButton, false);
 
     if (!transport || !transport->available()) {
-        m_statusLabel->setString("Globed 2.2+ is required");
-        m_playersLabel->setString("Install or enable Globed first.");
+        auto globed = Loader::get()->getInstalledMod("dankmeme.globed2");
+        if (globed && globed->isOrWillBeEnabled()) {
+            m_statusLabel->setString("Globed 2.2.3+ API is required");
+            m_playersLabel->setString("Globed 2.2.2 has a known API bug.\nUse 2.2.3+ or the official nightly build.");
+        } else {
+            m_statusLabel->setString("Globed 2.2.3+ is required");
+            m_playersLabel->setString("Install or enable Globed first.");
+        }
         m_roundLabel->setString("");
         return;
     }
