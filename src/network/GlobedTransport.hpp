@@ -24,6 +24,7 @@ private:
 
     PartyMessageHandler m_messageHandler;
     bool m_listenerRegistered = false;
+    bool m_apiReady = false;
 };
 
 } // namespace gdparty
