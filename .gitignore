@@ -1,0 +1,12 @@
+/build/
+/build-*/
+.vscode/
+.idea/
+*.geode
+*.pdb
+*.ilk
+*.obj
+*.dll
+*.dylib
+*.so
+.DS_Store
