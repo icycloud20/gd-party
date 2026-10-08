@@ -8,7 +8,7 @@
     },
     "id": "duckydev.gd-party",
     "name": "GD Party",
-    "version": "v0.1.0",
+    "version": "v0.1.1",
     "developer": "DuckyDev",
     "description": "Competitive party gamemodes for Geometry Dash, powered by Globed rooms.",
     "dependencies": {
