@@ -1,12 +1,13 @@
 #pragma once
 
 #include <Geode/Geode.hpp>
+#include <Geode/ui/Popup.hpp>
 
 namespace gdparty {
 
-class PartyPopup : public geode::Popup<> {
+class PartyPopup : public geode::Popup {
 protected:
-    bool setup() override;
+    bool init() override;
 
 private:
     void tick(float deltaTime);

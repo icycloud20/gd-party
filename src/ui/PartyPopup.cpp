@@ -65,7 +65,7 @@ std::string playerListText(PartyManager const& manager) {
 PartyPopup* PartyPopup::create() {
     auto popup = new PartyPopup();
 
-    if (popup && popup->initAnchored(430.0f, 285.0f, "GJ_square01.png")) {
+    if (popup && popup->init()) {
         popup->autorelease();
         return popup;
     }
@@ -74,7 +74,11 @@ PartyPopup* PartyPopup::create() {
     return nullptr;
 }
 
-bool PartyPopup::setup() {
+bool PartyPopup::init() {
+    if (!Popup::init(430.0f, 285.0f, "GJ_square01.png")) {
+        return false;
+    }
+
     setTitle("GD Party");
 
     m_statusLabel = CCLabelBMFont::create("Checking Globed...", "goldFont.fnt");

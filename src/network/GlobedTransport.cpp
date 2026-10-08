@@ -1,8 +1,8 @@
 #include "GlobedTransport.hpp"
 
 #include <Geode/Geode.hpp>
-#include <globed/core/Event.hpp>
-#include <globed/soft-link/API.hpp>
+#include <dankmeme.globed2/include/globed/core/Event.hpp>
+#include <dankmeme.globed2/include/globed/soft-link/API.hpp>
 
 using namespace geode::prelude;
 
@@ -116,8 +116,6 @@ void GlobedTransport::ensureListener() {
                 return;
             }
 
-            // Never trust the account ID encoded by another client. Globed provides
-            // the authenticated sender account ID with the event metadata.
             message.senderAccountId = options.sender;
             m_messageHandler(message);
         }).leak();
