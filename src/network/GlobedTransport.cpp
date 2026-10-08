@@ -46,7 +46,11 @@ void sendEvent(PartyMessage const& message, std::optional<int> targetAccountId) 
 } // namespace
 
 bool GlobedTransport::available() const {
-    return globed::api::available() && globed::api::isAtLeast("v2.2.0");
+    // The soft-link dispatch caches the first lookup result. If it is queried
+    // before Globed has fully loaded, that failed lookup can remain cached for
+    // the rest of the session. Only touch the soft-link API after
+    // waitForGlobed has confirmed Globed is loaded.
+    return m_apiReady && globed::api::available() && globed::api::isAtLeast("v2.2.0");
 }
 
 bool GlobedTransport::connected() const {
@@ -85,10 +89,18 @@ std::string GlobedTransport::localUsername() const {
 }
 
 void GlobedTransport::sendReliable(PartyMessage const& message) {
+    if (!available()) {
+        return;
+    }
+
     sendEvent(message, std::nullopt);
 }
 
 void GlobedTransport::sendReliableTo(PartyMessage const& message, int accountId) {
+    if (!available()) {
+        return;
+    }
+
     sendEvent(message, accountId);
 }
 
@@ -105,6 +117,9 @@ void GlobedTransport::ensureListener() {
     m_listenerRegistered = true;
 
     globed::api::waitForGlobed([this] {
+        m_apiReady = true;
+        log::info("Globed soft-link API is ready");
+
         GDPartyEvent::listen([this](GDPartyEvent const& event, globed::EventOptions const& options) {
             if (!m_messageHandler) {
                 return;
