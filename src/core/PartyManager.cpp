@@ -2,6 +2,7 @@
 
 #include "PartyLevelLoader.hpp"
 #include "PartyStateCodec.hpp"
+#include "RandomLevelProvider.hpp"
 #include "../gamemodes/RouletteRace.hpp"
 
 #include <Geode/Geode.hpp>
@@ -287,8 +288,7 @@ bool PartyManager::startMatch() {
 
     RouletteRace rouletteRace;
     rouletteRace.begin(m_state);
-    broadcastSnapshot();
-    queueAssignedLevelOpen();
+    beginRouletteLevelAssignment();
     return true;
 }
 
@@ -393,6 +393,10 @@ void PartyManager::resetForCurrentRoom() {
     m_state = {};
     m_lastReportedTarget = 0;
     m_pendingRoundAdvanceOpen = false;
+    m_levelByTarget.clear();
+    m_waitingPlayersByTarget.clear();
+    m_targetsLoading.clear();
+    m_usedLevelIds.clear();
 
     if (!m_transport) {
         return;
@@ -522,13 +526,20 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
                 player->finished = true;
                 m_state.winnerAccountId = player->accountId;
                 m_state.phase = PartyPhase::Results;
+                m_pendingRoundAdvanceOpen = false;
+                broadcastSnapshot();
+                break;
             }
 
+            auto nextTarget = player->rouletteTarget;
+            player->currentLevelId = 0;
+            assignPlayerToTarget(player->accountId, nextTarget);
             broadcastSnapshot();
 
             if (message.senderAccountId == m_transport->localAccountId()) {
-                m_pendingRoundAdvanceOpen = false;
-                if (!won) {
+                auto local = localPlayer();
+                if (local && local->currentLevelId > 0) {
+                    m_pendingRoundAdvanceOpen = false;
                     queueAssignedLevelOpen();
                 }
             }
@@ -659,6 +670,107 @@ PartyMessage PartyManager::baseMessage(PartyMessageType type) {
     message.senderAccountId = m_transport ? m_transport->localAccountId() : 0;
     message.sequence = ++m_sequence;
     return message;
+}
+
+void PartyManager::beginRouletteLevelAssignment() {
+    m_levelByTarget.clear();
+    m_waitingPlayersByTarget.clear();
+    m_targetsLoading.clear();
+    m_usedLevelIds.clear();
+
+    m_state.phase = PartyPhase::Countdown;
+    for (auto& player : m_state.players) {
+        player.currentLevelId = 0;
+        assignPlayerToTarget(player.accountId, player.rouletteTarget);
+    }
+
+    broadcastSnapshot();
+}
+
+void PartyManager::assignPlayerToTarget(int accountId, int target) {
+    auto player = findMutablePlayer(accountId);
+    if (!player || target <= 0) {
+        return;
+    }
+
+    if (auto cached = m_levelByTarget.find(target); cached != m_levelByTarget.end()) {
+        player->currentLevelId = cached->second;
+        return;
+    }
+
+    player->currentLevelId = 0;
+    auto& waitingPlayers = m_waitingPlayersByTarget[target];
+    if (std::find(waitingPlayers.begin(), waitingPlayers.end(), accountId) == waitingPlayers.end()) {
+        waitingPlayers.push_back(accountId);
+    }
+
+    if (!m_targetsLoading.insert(target).second) {
+        return;
+    }
+
+    RandomLevelProvider::get().request(
+        m_state.settings.difficulty,
+        false,
+        m_state.settings.recentPoolSize,
+        seedForTarget(target),
+        m_usedLevelIds,
+        [this, target](std::optional<int> levelId) {
+            resolveTargetLevel(target, levelId);
+        }
+    );
+}
+
+void PartyManager::resolveTargetLevel(int target, std::optional<int> levelId) {
+    m_targetsLoading.erase(target);
+
+    auto waiting = m_waitingPlayersByTarget.find(target);
+    if (waiting == m_waitingPlayersByTarget.end()) {
+        return;
+    }
+
+    auto waitingPlayers = std::move(waiting->second);
+    m_waitingPlayersByTarget.erase(waiting);
+
+    if (!m_state.active || !m_transport || !m_transport->isRoomOwner()) {
+        return;
+    }
+
+    auto chosenLevelId = levelId.value_or(RouletteRace::levelForTarget(m_state.settings.seed, target));
+    if (!levelId) {
+        log::warn("GD Party is using a fallback roulette level for target {}", target);
+        Notification::create("Filtered level search failed; using a fallback level", NotificationIcon::Warning)->show();
+    }
+
+    m_levelByTarget[target] = chosenLevelId;
+    m_usedLevelIds.insert(chosenLevelId);
+
+    for (auto accountId : waitingPlayers) {
+        auto player = findMutablePlayer(accountId);
+        if (!player || player->finished || player->rouletteTarget != target) {
+            continue;
+        }
+
+        player->currentLevelId = chosenLevelId;
+    }
+
+    auto wasStarting = m_state.phase == PartyPhase::Countdown;
+    if (wasStarting) {
+        m_state.phase = PartyPhase::Playing;
+    }
+
+    broadcastSnapshot();
+
+    auto local = localPlayer();
+    if (local && local->currentLevelId == chosenLevelId &&
+        (wasStarting || m_pendingRoundAdvanceOpen)) {
+        m_pendingRoundAdvanceOpen = false;
+        queueAssignedLevelOpen();
+    }
+}
+
+std::uint64_t PartyManager::seedForTarget(int target) const {
+    auto targetValue = static_cast<std::uint64_t>(std::max(1, target));
+    return m_state.settings.seed ^ (targetValue * 0x9e3779b97f4a7c15ULL);
 }
 
 } // namespace gdparty
