@@ -23,26 +23,18 @@ private:
     void onTogglePractice(cocos2d::CCObject* sender);
     void onAttemptsDown(cocos2d::CCObject* sender);
     void onAttemptsUp(cocos2d::CCObject* sender);
-    void onRecentPoolDown(cocos2d::CCObject* sender);
-    void onRecentPoolUp(cocos2d::CCObject* sender);
 
     cocos2d::CCLabelBMFont* m_modeValue = nullptr;
     cocos2d::CCLabelBMFont* m_goalValue = nullptr;
     cocos2d::CCLabelBMFont* m_difficultyValue = nullptr;
-    cocos2d::CCLabelBMFont* m_overrunValue = nullptr;
-    cocos2d::CCLabelBMFont* m_practiceValue = nullptr;
+    cocos2d::CCLabelBMFont* m_fourthRowLabel = nullptr;
     cocos2d::CCLabelBMFont* m_attemptsValue = nullptr;
-    cocos2d::CCLabelBMFont* m_recentPoolValue = nullptr;
+    cocos2d::CCNode* m_difficultyIconNode = nullptr;
 
-    cocos2d::CCNode* m_overrunRow = nullptr;
-    cocos2d::CCNode* m_attemptsRow = nullptr;
-    cocos2d::CCNode* m_recentPoolRow = nullptr;
-
-    CCMenuItemSpriteExtra* m_overrunButton = nullptr;
+    CCMenuItemToggler* m_overrunToggle = nullptr;
+    CCMenuItemToggler* m_practiceToggle = nullptr;
     CCMenuItemSpriteExtra* m_attemptsDownButton = nullptr;
     CCMenuItemSpriteExtra* m_attemptsUpButton = nullptr;
-    CCMenuItemSpriteExtra* m_recentPoolDownButton = nullptr;
-    CCMenuItemSpriteExtra* m_recentPoolUpButton = nullptr;
 
 public:
     static PartySettingsPopup* create();
