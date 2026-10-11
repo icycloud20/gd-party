@@ -1,16 +1,15 @@
 #pragma once
 
-#include <Geode/Geode.hpp>
-#include <Geode/ui/Popup.hpp>
+#include "PartyBaseLayer.hpp"
 
 namespace gdparty {
 
-class LeaderboardPopup : public geode::Popup {
-protected:
-    bool init() override;
-
+class LeaderboardPopup : public PartyBaseLayer {
 public:
     static LeaderboardPopup* create();
+
+protected:
+    bool init();
 };
 
 } // namespace gdparty
