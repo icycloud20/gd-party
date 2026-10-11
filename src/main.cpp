@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 
 using namespace geode::prelude;
 
@@ -32,11 +33,12 @@ class $modify(GDPartyMenuLayer, MenuLayer) {
             return true;
         }
 
-        CCNode* partyIcon = gdparty::partyui::makeSizedSprite(
-            gdparty::partyui::loadGlobedSprite("icon-crown-small.png"),
-            34.0f
-        );
-        if (!partyIcon) {
+        // Temporary native GD symbol until GD Party has its own custom sprite.
+        // This is intentionally not the Globed crown anymore.
+        CCNode* partyIcon = CCSprite::createWithSpriteFrameName("GJ_starsIcon_001.png");
+        if (partyIcon) {
+            partyIcon->setScale(1.05f);
+        } else {
             auto fallback = CCLabelBMFont::create("P", "goldFont.fnt");
             fallback->setScale(0.78f);
             partyIcon = fallback;
@@ -102,6 +104,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         bool gameplayArmed = false;
         bool blockRestart = false;
         bool decisionShown = false;
+        std::optional<gdparty::RoundDecisionContext> pendingDecision;
     };
 
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
@@ -174,7 +177,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
 
         auto currentProgress = std::clamp(this->getCurrentPercentInt(), 0, 100);
         m_fields->activePartyRunTime += std::max(0.0f, deltaTime);
-        if (currentProgress > 0 || m_fields->activePartyRunTime >= 0.18f) {
+        if (currentProgress > 0 || m_fields->activePartyRunTime >= 0.35f) {
             m_fields->gameplayArmed = true;
         }
 
@@ -186,6 +189,19 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         );
 
         refreshPartyHud();
+    }
+
+    void showPendingDecision(float) {
+        if (!m_fields->pendingDecision) {
+            return;
+        }
+
+        auto context = *m_fields->pendingDecision;
+        m_fields->pendingDecision.reset();
+        PlatformToolbox::showCursor();
+        if (auto popup = gdparty::RoundDecisionPopup::create(context)) {
+            popup->show();
+        }
     }
 
     void destroyPlayer(PlayerObject* player, GameObject* object) {
@@ -234,12 +250,8 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         PlayLayer::destroyPlayer(player, object);
 
         if (shouldShowDecision) {
-            Loader::get()->queueInMainThread([decisionContext] {
-                PlatformToolbox::showCursor();
-                if (auto overlay = gdparty::RoundDecisionPopup::create(decisionContext)) {
-                    overlay->show();
-                }
-            });
+            m_fields->pendingDecision = decisionContext;
+            scheduleOnce(schedule_selector(GDPartyPlayLayer::showPendingDecision), 0.30f);
         }
     }
 
@@ -280,12 +292,8 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         PlayLayer::levelComplete();
 
         if (shouldShowDecision) {
-            Loader::get()->queueInMainThread([decisionContext] {
-                PlatformToolbox::showCursor();
-                if (auto overlay = gdparty::RoundDecisionPopup::create(decisionContext)) {
-                    overlay->show();
-                }
-            });
+            m_fields->pendingDecision = decisionContext;
+            scheduleOnce(schedule_selector(GDPartyPlayLayer::showPendingDecision), 0.30f);
         }
     }
 
@@ -298,6 +306,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         m_fields->activePartyRunTime = 0.0f;
         m_fields->gameplayArmed = false;
         m_fields->decisionShown = false;
+        m_fields->pendingDecision.reset();
         PlayLayer::resetLevel();
     }
 
