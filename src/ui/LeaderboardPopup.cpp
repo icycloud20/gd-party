@@ -11,8 +11,8 @@ using namespace geode::prelude;
 namespace gdparty {
 namespace {
 
-constexpr float SummaryHeight = 40.0f;
-constexpr float RowHeight = 36.0f;
+constexpr float SummaryHeight = 46.0f;
+constexpr float RowHeight = 42.0f;
 
 char const* modeName(GameModeType mode) {
     return mode == GameModeType::RecentRush ? "Recent Rush" : "Roulette Race";
@@ -42,9 +42,9 @@ bool LeaderboardPopup::init() {
         std::clamp(windowSize.width * 0.75f, 360.0f, 420.0f),
         290.0f
     };
-    auto listSize = CCSize{shellSize.width * 0.8f, 218.0f};
+    auto listSize = CCSize{shellSize.width * 0.8f, 198.0f};
     auto listLeft = (shellSize.width - listSize.width) / 2.0f;
-    constexpr float ListBottom = 25.0f;
+    constexpr float ListBottom = 56.0f;
 
     m_shell = CCNode::create();
     m_shell->setContentSize(shellSize);
@@ -121,9 +121,6 @@ void LeaderboardPopup::rebuild() {
             if (first->progress != second->progress) {
                 return first->progress > second->progress;
             }
-            if (first->rouletteTarget != second->rouletteTarget) {
-                return first->rouletteTarget > second->rouletteTarget;
-            }
         } else {
             auto firstScore = std::max(first->progress, std::max(0, first->rouletteTarget - 1));
             auto secondScore = std::max(second->progress, std::max(0, second->rouletteTarget - 1));
@@ -164,14 +161,14 @@ void LeaderboardPopup::rebuild() {
         summaryRow,
         modeName(state.settings.gameMode),
         "bigFont.fnt",
-        0.40f,
+        0.45f,
         {12.0f, SummaryHeight / 2.0f}
     );
-    modeLabel->limitLabelWidth(listSize.width * 0.38f, 0.40f, 0.29f);
+    modeLabel->limitLabelWidth(listSize.width * 0.39f, 0.45f, 0.33f);
 
-    auto difficultyX = listSize.width * 0.58f;
-    if (auto icon = partyui::makeDifficultyIcon(state.settings.difficulty, 0.44f)) {
-        icon->setPosition({difficultyX - 25.0f, SummaryHeight / 2.0f});
+    auto difficultyX = listSize.width * 0.61f;
+    if (auto icon = partyui::makeDifficultyIcon(state.settings.difficulty, 0.62f)) {
+        icon->setPosition({difficultyX - 34.0f, SummaryHeight / 2.0f});
         summaryRow->addChild(icon, 3);
     }
 
@@ -179,21 +176,21 @@ void LeaderboardPopup::rebuild() {
         summaryRow,
         partyui::difficultyName(state.settings.difficulty),
         "goldFont.fnt",
-        0.35f,
-        {difficultyX - 5.0f, SummaryHeight / 2.0f},
+        0.42f,
+        {difficultyX - 7.0f, SummaryHeight / 2.0f},
         {0.0f, 0.5f}
     );
-    difficultyLabel->limitLabelWidth(listSize.width * 0.24f, 0.35f, 0.25f);
+    difficultyLabel->limitLabelWidth(listSize.width * 0.24f, 0.42f, 0.30f);
 
     auto goalLabel = partyui::addLabel(
         summaryRow,
         fmt::format("{}%", state.settings.targetProgress),
         "goldFont.fnt",
-        0.46f,
+        0.54f,
         {listSize.width - 10.0f, SummaryHeight / 2.0f},
         {1.0f, 0.5f}
     );
-    goalLabel->limitLabelWidth(56.0f, 0.46f, 0.32f);
+    goalLabel->limitLabelWidth(62.0f, 0.54f, 0.38f);
 
     auto gameManager = GameManager::sharedState();
 
@@ -213,15 +210,15 @@ void LeaderboardPopup::rebuild() {
             row,
             fmt::format("{}.", index + 1),
             index == 0 ? "goldFont.fnt" : "bigFont.fnt",
-            0.35f,
+            0.36f,
             {24.0f, RowHeight / 2.0f},
             {1.0f, 0.5f}
         );
-        rankLabel->limitLabelWidth(24.0f, 0.35f, 0.25f);
+        rankLabel->limitLabelWidth(24.0f, 0.36f, 0.27f);
 
         auto icon = SimplePlayer::create(std::max(1, player.cubeIcon));
-        icon->setScale(0.44f);
-        icon->setPosition({45.0f, RowHeight / 2.0f});
+        icon->setScale(0.62f);
+        icon->setPosition({49.0f, RowHeight / 2.0f});
         if (gameManager) {
             icon->m_firstLayer->setColor(gameManager->colorForIdx(player.color1));
             icon->m_secondLayer->setColor(gameManager->colorForIdx(player.color2));
@@ -232,17 +229,17 @@ void LeaderboardPopup::rebuild() {
             row,
             player.name,
             "bigFont.fnt",
-            0.36f,
-            {67.0f, RowHeight / 2.0f + 1.0f}
+            0.40f,
+            {77.0f, RowHeight / 2.0f}
         );
-        nameLabel->limitLabelWidth(listSize.width * 0.34f, 0.36f, 0.26f);
+        nameLabel->limitLabelWidth(listSize.width * 0.34f, 0.40f, 0.29f);
 
         if (player.accountId == state.hostAccountId) {
-            auto crown = partyui::makeSizedSprite(partyui::loadGlobedSprite("icon-crown-small.png"), 17.0f);
+            auto crown = partyui::makeSizedSprite(partyui::loadGlobedSprite("icon-crown-small.png"), 19.0f);
             if (crown) {
                 auto nameWidth = nameLabel->getContentSize().width * nameLabel->getScale();
                 crown->setPosition({
-                    std::min(listSize.width * 0.57f, 67.0f + nameWidth + 11.0f),
+                    std::min(listSize.width * 0.57f, 77.0f + nameWidth + 11.0f),
                     RowHeight / 2.0f + 1.0f
                 });
                 row->addChild(crown, 4);
@@ -250,59 +247,24 @@ void LeaderboardPopup::rebuild() {
         }
 
         std::string status;
-        std::string detail;
         char const* statusFont = "bigFont.fnt";
-
-        if (recentRush) {
-            if (player.finished) {
-                status = "WINNER";
-                detail = fmt::format("GOAL {}%", state.settings.targetProgress);
-                statusFont = "goldFont.fnt";
-            } else {
-                status = fmt::format("BEST {}%", player.progress);
-                detail = fmt::format(
-                    "LEVEL {}  |  TRY {}/{}",
-                    player.rouletteTarget,
-                    std::min(player.attemptCount + 1, state.settings.maxAttempts),
-                    state.settings.maxAttempts
-                );
-            }
+        if (player.finished) {
+            status = "WINNER";
+            statusFont = "goldFont.fnt";
         } else {
-            auto score = std::max(player.progress, std::max(0, player.rouletteTarget - 1));
-            if (player.finished) {
-                status = "WINNER";
-                detail = fmt::format("SCORE {}%", state.settings.targetProgress);
-                statusFont = "goldFont.fnt";
-            } else {
-                status = fmt::format("SCORE {}%", score);
-                detail = fmt::format(
-                    "NEXT {}%  |  THIS LEVEL {}%",
-                    player.rouletteTarget,
-                    player.progress
-                );
-            }
+            auto goal = recentRush ? state.settings.targetProgress : player.rouletteTarget;
+            status = fmt::format("PROGRESS {}%  |  GOAL {}%", player.progress, goal);
         }
 
         auto statusLabel = partyui::addLabel(
             row,
             status,
             statusFont,
-            0.31f,
-            {listSize.width - 10.0f, RowHeight / 2.0f + 6.0f},
+            0.30f,
+            {listSize.width - 10.0f, RowHeight / 2.0f},
             {1.0f, 0.5f}
         );
-        statusLabel->limitLabelWidth(listSize.width * 0.32f, 0.31f, 0.22f);
-
-        auto detailLabel = partyui::addLabel(
-            row,
-            detail,
-            "bigFont.fnt",
-            0.20f,
-            {listSize.width - 10.0f, RowHeight / 2.0f - 7.0f},
-            {1.0f, 0.5f}
-        );
-        detailLabel->setOpacity(190);
-        detailLabel->limitLabelWidth(listSize.width * 0.42f, 0.20f, 0.15f);
+        statusLabel->limitLabelWidth(listSize.width * 0.38f, 0.30f, 0.22f);
     }
 
     if (playerCountChanged) {
