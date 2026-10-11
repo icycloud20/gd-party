@@ -134,7 +134,7 @@ bool PartySettingsPopup::init() {
     m_mainLayer->addChild(m_overrunRow);
     addRowLabel(m_overrunRow, "Count passed %", 125.0f);
     m_overrunValue = addValueLabel(m_overrunRow, "ON", 125.0f);
-    makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onToggleOverrun), "Toggle", {365.0f, 125.0f}, 62.0f);
+    m_overrunButton = makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onToggleOverrun), "Toggle", {365.0f, 125.0f}, 62.0f);
 
     addRowLabel(m_mainLayer, "Practice mode", 85.0f);
     m_practiceValue = addValueLabel(m_mainLayer, "OFF", 85.0f);
@@ -145,16 +145,16 @@ bool PartySettingsPopup::init() {
     m_mainLayer->addChild(m_attemptsRow);
     addRowLabel(m_attemptsRow, "Max attempts", 125.0f);
     m_attemptsValue = addValueLabel(m_attemptsRow, "1", 125.0f);
-    makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onAttemptsDown), "-", {235.0f, 125.0f});
-    makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onAttemptsUp), "+", {335.0f, 125.0f});
+    m_attemptsDownButton = makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onAttemptsDown), "-", {235.0f, 125.0f});
+    m_attemptsUpButton = makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onAttemptsUp), "+", {335.0f, 125.0f});
 
     m_recentPoolRow = CCNode::create();
     m_recentPoolRow->setPosition({0.0f, 0.0f});
     m_mainLayer->addChild(m_recentPoolRow);
     addRowLabel(m_recentPoolRow, "Recent pool", 45.0f);
     m_recentPoolValue = addValueLabel(m_recentPoolRow, "Latest 100", 45.0f);
-    makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onRecentPoolDown), "-", {235.0f, 45.0f});
-    makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onRecentPoolUp), "+", {335.0f, 45.0f});
+    m_recentPoolDownButton = makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onRecentPoolDown), "-", {235.0f, 45.0f});
+    m_recentPoolUpButton = makeSmallButton(buttonMenu, this, menu_selector(PartySettingsPopup::onRecentPoolUp), "+", {335.0f, 45.0f});
 
     schedule(schedule_selector(PartySettingsPopup::tick), 0.2f);
     refresh();
@@ -181,6 +181,12 @@ void PartySettingsPopup::refresh() {
     m_overrunRow->setVisible(!recentRush);
     m_attemptsRow->setVisible(recentRush);
     m_recentPoolRow->setVisible(recentRush);
+
+    m_overrunButton->setVisible(!recentRush);
+    m_attemptsDownButton->setVisible(recentRush);
+    m_attemptsUpButton->setVisible(recentRush);
+    m_recentPoolDownButton->setVisible(recentRush);
+    m_recentPoolUpButton->setVisible(recentRush);
 }
 
 void PartySettingsPopup::onModePrevious(CCObject*) {
