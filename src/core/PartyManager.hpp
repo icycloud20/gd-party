@@ -75,6 +75,8 @@ private:
     std::unique_ptr<PartyTransport> m_transport;
     std::uint32_t m_sequence = 0;
     int m_lastReportedTarget = 0;
+    int m_lastReportedProgress = -1;
+    int m_lastReportedLevelId = 0;
     bool m_pendingRoundAdvanceOpen = false;
 
     std::unordered_map<int, int> m_levelByTarget;
