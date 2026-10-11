@@ -1,5 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
+#include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 
 #include "core/PartyManager.hpp"
@@ -45,6 +46,31 @@ class $modify(GDPartyMenuLayer, MenuLayer) {
 
     void onPartyButton(CCObject*) {
         gdparty::PartyPopup::create()->show();
+    }
+};
+
+class $modify(GDPartyPauseLayer, PauseLayer) {
+    void onPracticeMode(CCObject* sender) {
+        auto& manager = gdparty::PartyManager::get();
+        auto const& state = manager.state();
+        auto localPlayer = manager.localPlayer();
+        auto playLayer = PlayLayer::get();
+
+        auto isAssignedPartyLevel =
+            state.active &&
+            state.phase == gdparty::PartyPhase::Playing &&
+            localPlayer &&
+            !localPlayer->finished &&
+            playLayer &&
+            playLayer->m_level &&
+            playLayer->m_level->m_levelID.value() == localPlayer->currentLevelId;
+
+        if (isAssignedPartyLevel && !state.settings.practiceModeEnabled && !playLayer->m_isPracticeMode) {
+            Notification::create("Practice mode is disabled for this match", NotificationIcon::Warning)->show();
+            return;
+        }
+
+        PauseLayer::onPracticeMode(sender);
     }
 };
 
