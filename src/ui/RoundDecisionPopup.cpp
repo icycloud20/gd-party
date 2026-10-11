@@ -10,179 +10,95 @@ using namespace geode::prelude;
 namespace gdparty {
 
 RoundDecisionPopup* RoundDecisionPopup::create(RoundDecisionContext const& context) {
-    auto layer = new RoundDecisionPopup();
-    if (layer && layer->init(context)) {
-        layer->autorelease();
-        return layer;
+    auto popup = new RoundDecisionPopup();
+    if (popup && popup->init(context)) {
+        popup->autorelease();
+        return popup;
     }
 
-    CC_SAFE_DELETE(layer);
+    CC_SAFE_DELETE(popup);
     return nullptr;
 }
 
 bool RoundDecisionPopup::init(RoundDecisionContext const& context) {
-    if (!initBase({37, 50, 167})) {
+    if (!geode::Popup::init(CCSize{300.0f, 148.0f})) {
         return false;
     }
 
     m_context = context;
-    if (m_backMenu) {
-        m_backMenu->setVisible(false);
-    }
-
-    setTouchEnabled(true);
-    setTouchMode(kCCTouchesOneByOne);
-    setTouchPriority(-10000);
-    setKeyboardEnabled(true);
-    setKeypadEnabled(true);
     PlatformToolbox::showCursor();
 
-    auto windowSize = CCDirector::sharedDirector()->getWinSize();
-    auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
-    auto shellSize = CCSize{420.0f, 290.0f};
+    auto title = context.recentRush
+        ? (context.goalReached ? "Goal Reached!" : "Level Complete")
+        : "Round Secured";
+    setTitle(title, "goldFont.fnt", 0.62f, 17.0f);
 
-    auto shell = CCNode::create();
-    shell->setID("round-shell");
-    shell->setContentSize(shellSize);
-    shell->setAnchorPoint({0.5f, 0.5f});
-    shell->setPosition(center);
-    addChild(shell, 2);
-
-    auto outer = CCScale9Sprite::create("GJ_square02.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
-    outer->setContentSize(shellSize);
-    outer->setPosition({shellSize.width / 2.0f, shellSize.height / 2.0f});
-    shell->addChild(outer, -5);
-
-    m_titleLabel = partyui::addLabel(
-        shell,
-        context.recentRush
-            ? (context.goalReached ? "GOAL REACHED!" : "LEVEL COMPLETE")
-            : "ROUND SECURED",
-        "goldFont.fnt",
-        0.68f,
-        {shellSize.width / 2.0f, shellSize.height - 18.0f},
-        {0.5f, 0.5f}
+    auto infoPanel = CCScale9Sprite::create(
+        "square02_001.png",
+        CCRect{0.0f, 0.0f, 80.0f, 80.0f}
     );
-    m_titleLabel->limitLabelWidth(330.0f, 0.68f, 0.42f);
-
-    constexpr float InfoLeft = 42.0f;
-    constexpr float InfoBottom = 83.0f;
-    auto infoSize = CCSize{336.0f, 132.0f};
-    partyui::addBlueListFrame(shell, {InfoLeft, InfoBottom}, infoSize);
-
-    auto header = CCLayerColor::create(ccc4(0x28, 0x35, 0x77, 255), infoSize.width, 40.0f);
-    header->setPosition({InfoLeft, InfoBottom + infoSize.height - 40.0f});
-    shell->addChild(header, 2);
-
-    auto modeLabel = partyui::addLabel(
-        header,
-        context.recentRush ? "RECENT RUSH" : "ROULETTE RACE",
-        "bigFont.fnt",
-        0.39f,
-        {12.0f, 20.0f}
-    );
-    modeLabel->limitLabelWidth(150.0f, 0.39f, 0.28f);
-
-    auto goalLabel = partyui::addLabel(
-        header,
-        fmt::format("{} {}%", context.recentRush ? "GOAL" : "TARGET", context.requiredProgress),
-        "goldFont.fnt",
-        0.40f,
-        {infoSize.width - 12.0f, 20.0f},
-        {1.0f, 0.5f}
-    );
-    goalLabel->limitLabelWidth(130.0f, 0.40f, 0.28f);
+    infoPanel->setContentSize({258.0f, 56.0f});
+    infoPanel->setPosition({150.0f, 83.0f});
+    infoPanel->setOpacity(72);
+    m_mainLayer->addChild(infoPanel, -1);
 
     m_progressLabel = partyui::addLabel(
-        shell,
-        fmt::format("BEST {}%", context.achievedProgress),
-        "goldFont.fnt",
-        0.58f,
-        {shellSize.width / 2.0f, 142.0f},
-        {0.5f, 0.5f}
-    );
-    m_progressLabel->setZOrder(5);
-
-    auto detail = context.recentRush
-        ? fmt::format("ATTEMPT {} / {}", context.attemptNumber, context.maxAttempts)
-        : fmt::format("ROULETTE TARGET {}%", context.sourceTarget);
-    m_detailLabel = partyui::addLabel(
-        shell,
-        detail,
+        m_mainLayer,
+        fmt::format("PROGRESS {}%  |  GOAL {}%", context.achievedProgress, context.requiredProgress),
         "bigFont.fnt",
-        0.29f,
-        {shellSize.width / 2.0f, 115.0f},
+        0.37f,
+        {150.0f, 87.0f},
         {0.5f, 0.5f}
     );
-    m_detailLabel->setOpacity(220);
-    m_detailLabel->setZOrder(5);
+    m_progressLabel->limitLabelWidth(235.0f, 0.37f, 0.28f);
 
-    auto buttonMenu = CCMenu::create();
-    buttonMenu->setPosition({0.0f, 0.0f});
-    shell->addChild(buttonMenu, 10);
+    m_attemptLabel = partyui::addLabel(
+        m_mainLayer,
+        context.recentRush
+            ? fmt::format("ATTEMPT {} / {}", context.attemptNumber, context.maxAttempts)
+            : "",
+        "bigFont.fnt",
+        0.24f,
+        {150.0f, 66.0f},
+        {0.5f, 0.5f}
+    );
+    m_attemptLabel->setOpacity(205);
+    m_attemptLabel->setVisible(context.recentRush);
 
     m_nextButton = partyui::addTextButton(
-        buttonMenu,
+        m_buttonMenu,
         this,
         menu_selector(RoundDecisionPopup::onNextLevel),
         "Next Level",
-        {shellSize.width / 2.0f - 67.0f, 43.0f},
-        108.0f,
+        {88.0f, 30.0f},
+        104.0f,
         "GJ_button_01.png",
-        0.57f
+        0.52f
     );
     m_leaderboardButton = partyui::addTextButton(
-        buttonMenu,
+        m_buttonMenu,
         this,
         menu_selector(RoundDecisionPopup::onLeaderboard),
         "Leaderboard",
-        {shellSize.width / 2.0f + 67.0f, 43.0f},
-        108.0f,
+        {212.0f, 30.0f},
+        104.0f,
         "GJ_button_02.png",
-        0.50f
+        0.46f
     );
 
     m_statusLabel = partyui::addLabel(
-        shell,
+        m_mainLayer,
         "",
         "bigFont.fnt",
-        0.22f,
-        {shellSize.width / 2.0f, 19.0f},
+        0.20f,
+        {150.0f, 9.0f},
         {0.5f, 0.5f}
     );
-    m_statusLabel->setOpacity(190);
-    m_statusLabel->setZOrder(5);
+    m_statusLabel->setOpacity(180);
 
     schedule(schedule_selector(RoundDecisionPopup::tick), 0.12f);
     refresh();
     return true;
-}
-
-void RoundDecisionPopup::show() {
-    PlatformToolbox::showCursor();
-    auto scene = CCDirector::sharedDirector()->getRunningScene();
-    if (!scene) {
-        return;
-    }
-
-    scene->addChild(this, 100000);
-
-    if (m_background) {
-        m_background->setOpacity(0);
-        m_background->runAction(CCFadeTo::create(0.16f, 255));
-    }
-
-    if (auto shell = getChildByID("round-shell")) {
-        shell->setScale(0.96f);
-        shell->runAction(CCEaseBackOut::create(CCScaleTo::create(0.18f, 1.0f)));
-    }
-}
-
-bool RoundDecisionPopup::ccTouchBegan(CCTouch*, CCEvent*) {
-    return true;
-}
-
-void RoundDecisionPopup::keyBackClicked() {
 }
 
 void RoundDecisionPopup::tick(float) {
@@ -218,7 +134,7 @@ void RoundDecisionPopup::refresh() {
     if (m_context.recentRush) {
         if (m_context.goalReached || state.phase == PartyPhase::Results) {
             m_nextButton->setVisible(false);
-            m_leaderboardButton->setPositionX(210.0f);
+            m_leaderboardButton->setPositionX(150.0f);
             m_statusLabel->setString("GOAL SECURED");
             return;
         }
@@ -270,6 +186,7 @@ void RoundDecisionPopup::onNextLevel(CCObject*) {
 
 void RoundDecisionPopup::onLeaderboard(CCObject*) {
     PlatformToolbox::showCursor();
+    closeOverlay();
     if (auto leaderboard = LeaderboardPopup::create()) {
         leaderboard->switchTo();
     }
