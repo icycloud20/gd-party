@@ -17,164 +17,277 @@ char const* modeName(GameModeType mode) {
     return mode == GameModeType::RecentRush ? "Recent Rush" : "Roulette Race";
 }
 
+CCScale9Sprite* makePanel(CCNode* parent, CCPoint position, CCSize size, char const* texture, GLubyte opacity = 255) {
+    auto panel = CCScale9Sprite::create(texture, CCRect{0.0f, 0.0f, 80.0f, 80.0f});
+    panel->setContentSize(size);
+    panel->setPosition(position);
+    panel->setOpacity(opacity);
+    parent->addChild(panel);
+    return panel;
+}
+
+CCMenuItemSpriteExtra* makeIconButton(
+    CCNode* menu,
+    CCObject* target,
+    SEL_MenuHandler callback,
+    char const* frame,
+    CCPoint position,
+    float scale = 0.78f
+) {
+    auto sprite = CCSprite::createWithSpriteFrameName(frame);
+    sprite->setScale(scale);
+    auto button = CCMenuItemSpriteExtra::create(sprite, target, callback);
+    button->setPosition(position);
+    menu->addChild(button);
+    return button;
+}
+
 } // namespace
 
 PartyPopup* PartyPopup::create() {
-    auto popup = new PartyPopup();
-    if (popup && popup->init()) {
-        popup->autorelease();
-        return popup;
+    auto layer = new PartyPopup();
+    if (layer && layer->init()) {
+        layer->autorelease();
+        return layer;
     }
 
-    CC_SAFE_DELETE(popup);
+    CC_SAFE_DELETE(layer);
     return nullptr;
 }
 
 bool PartyPopup::init() {
-    if (!Popup::init(420.0f, 285.0f, "GJ_square01.png")) {
+    if (!initBase({37, 50, 167})) {
         return false;
     }
 
-    setTitle("Party");
+    auto windowSize = CCDirector::sharedDirector()->getWinSize();
+    auto center = windowSize / 2.0f;
+    auto shellSize = CCSize{
+        std::clamp(windowSize.width - 118.0f, 390.0f, 430.0f),
+        std::clamp(windowSize.height - 34.0f, 270.0f, 292.0f)
+    };
 
-    m_statusLabel = partyui::addLabel(
-        m_mainLayer,
-        "Checking Globed...",
-        "chatFont.fnt",
-        0.43f,
-        {210.0f, 247.0f},
+    m_shell = CCNode::create();
+    m_shell->setContentSize(shellSize);
+    m_shell->setAnchorPoint({0.5f, 0.5f});
+    m_shell->setPosition(center);
+    addChild(m_shell, 2);
+
+    auto shellBackground = makePanel(
+        m_shell,
+        {shellSize.width / 2.0f, shellSize.height / 2.0f},
+        shellSize,
+        "GJ_square02.png"
+    );
+    shellBackground->setZOrder(-5);
+
+    partyui::addLabel(
+        m_shell,
+        "GD PARTY",
+        "goldFont.fnt",
+        0.72f,
+        {shellSize.width / 2.0f, shellSize.height - 20.0f},
         {0.5f, 0.5f}
     );
-    m_statusLabel->setOpacity(200);
 
-    partyui::addPanel(m_mainLayer, {210.0f, 211.0f}, {360.0f, 42.0f}, 60);
+    m_statusLabel = partyui::addLabel(
+        m_shell,
+        "Checking Globed...",
+        "chatFont.fnt",
+        0.42f,
+        {shellSize.width / 2.0f, shellSize.height - 39.0f},
+        {0.5f, 0.5f}
+    );
+    m_statusLabel->setOpacity(180);
+
+    auto summaryCenterY = shellSize.height - 69.0f;
+    auto summaryPanel = makePanel(
+        m_shell,
+        {shellSize.width / 2.0f, summaryCenterY},
+        {shellSize.width - 40.0f, 37.0f},
+        "square02_001.png",
+        78
+    );
+    summaryPanel->setColor({20, 30, 90});
+
+    m_summaryLayer = CCNode::create();
+    m_shell->addChild(m_summaryLayer, 3);
+
     m_modeLabel = partyui::addLabel(
-        m_mainLayer,
+        m_summaryLayer,
         "Roulette Race",
         "bigFont.fnt",
-        0.43f,
-        {48.0f, 211.0f}
+        0.38f,
+        {34.0f, summaryCenterY}
     );
+    m_modeLabel->limitLabelWidth(126.0f, 0.38f, 0.28f);
 
-    m_targetLabel = partyui::addLabel(
-        m_mainLayer,
-        "Goal 50%",
+    m_difficultyIconNode = CCNode::create();
+    m_difficultyIconNode->setPosition({shellSize.width - 190.0f, summaryCenterY});
+    m_summaryLayer->addChild(m_difficultyIconNode, 3);
+
+    m_difficultyLabel = partyui::addLabel(
+        m_summaryLayer,
+        "Random",
         "goldFont.fnt",
-        0.34f,
-        {364.0f, 211.0f},
+        0.29f,
+        {shellSize.width - 174.0f, summaryCenterY}
+    );
+    m_difficultyLabel->limitLabelWidth(105.0f, 0.29f, 0.21f);
+
+    auto separator = partyui::addLabel(
+        m_summaryLayer,
+        "|",
+        "chatFont.fnt",
+        0.38f,
+        {shellSize.width - 72.0f, summaryCenterY},
+        {0.5f, 0.5f}
+    );
+    separator->setOpacity(120);
+
+    m_goalLabel = partyui::addLabel(
+        m_summaryLayer,
+        "50%",
+        "goldFont.fnt",
+        0.36f,
+        {shellSize.width - 28.0f, summaryCenterY},
         {1.0f, 0.5f}
     );
 
-    m_difficultyIconNode = CCNode::create();
-    m_difficultyIconNode->setPosition({285.0f, 211.0f});
-    m_mainLayer->addChild(m_difficultyIconNode, 2);
+    auto listCenterY = shellSize.height / 2.0f - 4.0f;
+    auto listHeight = shellSize.height - 128.0f;
+    auto listPanel = makePanel(
+        m_shell,
+        {shellSize.width / 2.0f, listCenterY},
+        {shellSize.width - 40.0f, listHeight},
+        "square02_001.png",
+        95
+    );
+    listPanel->setColor({15, 26, 86});
 
-    partyui::addPanel(m_mainLayer, {210.0f, 143.0f}, {360.0f, 88.0f}, 54);
-    m_playersLabel = partyui::addLabel(
-        m_mainLayer,
+    m_playerListLayer = CCNode::create();
+    m_shell->addChild(m_playerListLayer, 4);
+
+    m_emptyLabel = partyui::addLabel(
+        m_shell,
         "No players yet",
         "chatFont.fnt",
         0.48f,
-        {210.0f, 143.0f},
+        {shellSize.width / 2.0f, listCenterY},
         {0.5f, 0.5f}
     );
-    m_playersLabel->setOpacity(210);
+    m_emptyLabel->setOpacity(190);
 
-    m_playerListLayer = CCNode::create();
-    m_mainLayer->addChild(m_playerListLayer, 2);
-
-    m_roundLabel = partyui::addLabel(
-        m_mainLayer,
+    m_footerLabel = partyui::addLabel(
+        m_shell,
         "",
         "chatFont.fnt",
-        0.38f,
-        {210.0f, 83.0f},
+        0.36f,
+        {shellSize.width / 2.0f, 48.0f},
         {0.5f, 0.5f}
     );
-    m_roundLabel->setOpacity(210);
+    m_footerLabel->setOpacity(180);
 
     auto buttonMenu = CCMenu::create();
     buttonMenu->setPosition({0.0f, 0.0f});
-    m_mainLayer->addChild(buttonMenu, 3);
+    m_shell->addChild(buttonMenu, 10);
+
+    auto firstX = shellSize.width / 2.0f - 66.0f;
+    auto secondX = shellSize.width / 2.0f + 66.0f;
+    constexpr float PrimaryY = 22.0f;
 
     m_createButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(PartyPopup::onCreateParty),
         "Create Party",
-        {210.0f, 45.0f},
-        112.0f
+        {shellSize.width / 2.0f, PrimaryY},
+        118.0f,
+        "GJ_button_01.png",
+        0.56f
     );
     m_joinButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(PartyPopup::onJoinParty),
         "Join Party",
-        {210.0f, 45.0f},
-        105.0f
+        {shellSize.width / 2.0f, PrimaryY},
+        112.0f,
+        "GJ_button_01.png",
+        0.56f
     );
-
     m_readyButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(PartyPopup::onReady),
         "Ready",
-        {105.0f, 45.0f},
-        82.0f
+        {firstX, PrimaryY},
+        104.0f,
+        "GJ_button_01.png",
+        0.62f
     );
     m_unreadyButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(PartyPopup::onUnready),
         "Unready",
-        {105.0f, 45.0f},
-        88.0f,
-        "GJ_button_06.png"
+        {firstX, PrimaryY},
+        104.0f,
+        "GJ_button_06.png",
+        0.55f
     );
     m_startButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(PartyPopup::onStart),
         "Start",
-        {210.0f, 45.0f},
-        82.0f
+        {secondX, PrimaryY},
+        104.0f,
+        "GJ_button_01.png",
+        0.62f
     );
-    m_settingsButton = partyui::addTextButton(
-        buttonMenu,
-        this,
-        menu_selector(PartyPopup::onSettings),
-        "Settings",
-        {315.0f, 45.0f},
-        88.0f,
-        "GJ_button_05.png"
-    );
-
     m_openLevelButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(PartyPopup::onOpenLevel),
-        "Level",
-        {155.0f, 45.0f},
-        82.0f
+        "Open Level",
+        {shellSize.width / 2.0f, PrimaryY},
+        118.0f,
+        "GJ_button_01.png",
+        0.57f
     );
-    m_leaderboardButton = partyui::addTextButton(
-        buttonMenu,
+
+    auto sideMenu = CCMenu::create();
+    sideMenu->setPosition({0.0f, 0.0f});
+    addChild(sideMenu, 20);
+
+    auto sideX = center.x + shellSize.width / 2.0f + 30.0f;
+    m_settingsButton = makeIconButton(
+        sideMenu,
+        this,
+        menu_selector(PartyPopup::onSettings),
+        "GJ_optionsBtn_001.png",
+        {sideX, center.y + 32.0f},
+        0.78f
+    );
+    m_leaderboardButton = makeIconButton(
+        sideMenu,
         this,
         menu_selector(PartyPopup::onLeaderboard),
-        "Standings",
-        {260.0f, 45.0f},
-        96.0f,
-        "GJ_button_02.png"
+        "GJ_statsBtn_001.png",
+        {sideX, center.y - 24.0f},
+        0.78f
     );
+
     m_leaveButton = partyui::addTextButton(
-        buttonMenu,
+        sideMenu,
         this,
         menu_selector(PartyPopup::onLeaveParty),
         "Leave",
-        {374.0f, 20.0f},
+        {sideX, center.y - 83.0f},
         62.0f,
         "GJ_button_06.png",
-        0.48f
+        0.45f
     );
 
     auto& manager = PartyManager::get();
@@ -209,71 +322,63 @@ void PartyPopup::refresh() {
     setVisible(m_readyButton, false);
     setVisible(m_unreadyButton, false);
     setVisible(m_startButton, false);
-    setVisible(m_settingsButton, false);
     setVisible(m_openLevelButton, false);
+    setVisible(m_settingsButton, false);
     setVisible(m_leaderboardButton, false);
     setVisible(m_leaveButton, false);
     setVisible(m_playerListLayer, false);
-    setVisible(m_playersLabel, true);
+    setVisible(m_emptyLabel, true);
 
-    m_difficultyIconNode->removeAllChildren();
-    if (auto icon = partyui::makeDifficultyIcon(state.settings.difficulty, 0.22f)) {
-        m_difficultyIconNode->addChild(icon);
-    }
-
-    m_modeLabel->setString(modeName(state.settings.gameMode));
-    m_targetLabel->setString(
-        fmt::format("{}  -  {}%", partyui::difficultyName(state.settings.difficulty), state.settings.targetProgress).c_str()
-    );
-    m_targetLabel->limitLabelWidth(120.0f, 0.34f, 0.24f);
+    rebuildMatchSummary();
 
     if (!transport || !transport->available()) {
         auto globed = Loader::get()->getInstalledMod("dankmeme.globed2");
-        m_statusLabel->setString(globed && globed->isOrWillBeEnabled() ? "Update Globed to a supported build" : "Globed is required");
-        m_playersLabel->setString("Connect through Globed first");
-        m_roundLabel->setString("");
+        m_statusLabel->setString(globed && globed->isOrWillBeEnabled() ? "Globed build is not compatible" : "Globed is required");
+        m_emptyLabel->setString("Install or update Globed first");
+        m_footerLabel->setString("");
         return;
     }
 
     if (!transport->connected()) {
-        m_statusLabel->setString("Not connected to Globed");
-        m_playersLabel->setString("Connect to a Globed server first");
-        m_roundLabel->setString("");
+        m_statusLabel->setString("Not connected");
+        m_emptyLabel->setString("Connect to a Globed server first");
+        m_footerLabel->setString("");
         return;
     }
 
     if (!transport->inRoom()) {
-        m_statusLabel->setString("No private room");
-        m_playersLabel->setString("Join a private Globed room to play");
-        m_roundLabel->setString("");
+        m_statusLabel->setString("No room");
+        m_emptyLabel->setString("Join a private Globed room first");
+        m_footerLabel->setString("");
         return;
     }
 
     if (!state.active) {
-        m_statusLabel->setString(transport->isRoomOwner() ? "Private room ready" : "Waiting for the room owner");
-        m_playersLabel->setString(transport->isRoomOwner() ? "Create a party to begin" : "The room owner has not created a party yet");
+        m_statusLabel->setString(transport->isRoomOwner() ? "Private room ready" : "Waiting for host");
+        m_emptyLabel->setString(transport->isRoomOwner() ? "Create a party to begin" : "The room owner has not created a party yet");
         setVisible(m_createButton, transport->isRoomOwner());
         setVisible(m_joinButton, !transport->isRoomOwner());
-        m_roundLabel->setString("");
+        m_footerLabel->setString("");
         return;
     }
 
-    setVisible(m_playersLabel, false);
+    setVisible(m_emptyLabel, false);
     setVisible(m_playerListLayer, true);
     rebuildPlayerList();
 
     auto localPlayer = manager.localPlayer();
     if (!localPlayer) {
-        setVisible(m_playersLabel, true);
         setVisible(m_playerListLayer, false);
-        m_playersLabel->setString("Party found in this room");
-        m_statusLabel->setString("Join when you're ready");
+        setVisible(m_emptyLabel, true);
+        m_statusLabel->setString("Party found");
+        m_emptyLabel->setString("Join the party when you're ready");
         setVisible(m_joinButton, !transport->isRoomOwner());
-        m_roundLabel->setString("");
+        m_footerLabel->setString("");
         return;
     }
 
     setVisible(m_leaveButton, true);
+    setVisible(m_leaderboardButton, true);
 
     if (state.phase == PartyPhase::Lobby) {
         m_statusLabel->setString(manager.isHost() ? "Hosting" : "Lobby");
@@ -281,56 +386,67 @@ void PartyPopup::refresh() {
         setVisible(m_unreadyButton, localPlayer->ready);
         setVisible(m_startButton, manager.isHost());
         setVisible(m_settingsButton, manager.isHost());
-        m_roundLabel->setString(localPlayer->ready ? "Ready - waiting for everyone else" : "Ready up when everyone is here");
+        m_footerLabel->setString(localPlayer->ready ? "Ready - waiting for everyone else" : "Ready up when everyone is here");
         return;
     }
 
     if (state.phase == PartyPhase::Countdown) {
         m_statusLabel->setString("Starting match");
-        m_roundLabel->setString("Finding a rated level...");
+        m_footerLabel->setString("Finding the first level...");
         return;
     }
 
     if (state.phase == PartyPhase::Playing) {
         m_statusLabel->setString(modeName(state.settings.gameMode));
+        setVisible(m_openLevelButton, localPlayer->currentLevelId > 0 && !PartyLevelLoader::get().isLoading());
 
         if (localPlayer->currentLevelId <= 0) {
-            m_roundLabel->setString("Finding your next level...");
+            m_footerLabel->setString("Finding your next level...");
         } else if (PartyLevelLoader::get().isLoading()) {
-            m_roundLabel->setString("Loading level page...");
+            m_footerLabel->setString("Loading level page...");
         } else if (state.settings.gameMode == GameModeType::RecentRush) {
-            m_roundLabel->setString(
+            m_footerLabel->setString(
                 fmt::format(
-                    "Level {}  -  attempt {}/{}  -  best {}%",
+                    "Level {}  |  attempt {}/{}  |  best {}%",
                     localPlayer->rouletteTarget,
-                    localPlayer->attemptCount + 1,
+                    std::min(localPlayer->attemptCount + 1, state.settings.maxAttempts),
                     state.settings.maxAttempts,
                     localPlayer->progress
                 ).c_str()
             );
-            setVisible(m_openLevelButton, true);
         } else {
-            m_roundLabel->setString(
-                fmt::format("Target {}%  -  best {}%", localPlayer->rouletteTarget, localPlayer->progress).c_str()
+            m_footerLabel->setString(
+                fmt::format("Target {}%  |  best {}%", localPlayer->rouletteTarget, localPlayer->progress).c_str()
             );
-            setVisible(m_openLevelButton, true);
         }
-
-        setVisible(m_leaderboardButton, true);
         return;
     }
 
     if (state.phase == PartyPhase::Results) {
         auto winner = manager.findPlayer(state.winnerAccountId);
-        auto winnerName = winner ? winner->name : "Unknown";
         m_statusLabel->setString("Match finished");
-        m_roundLabel->setString(fmt::format("{} wins", winnerName).c_str());
-        setVisible(m_leaderboardButton, true);
+        m_footerLabel->setString(
+            fmt::format("{} wins", winner ? winner->name : "Unknown").c_str()
+        );
+    }
+}
+
+void PartyPopup::rebuildMatchSummary() {
+    auto const& settings = PartyManager::get().state().settings;
+
+    m_modeLabel->setString(modeName(settings.gameMode));
+    m_difficultyLabel->setString(partyui::difficultyName(settings.difficulty));
+    m_goalLabel->setString(fmt::format("{}%", settings.targetProgress).c_str());
+
+    m_difficultyIconNode->removeAllChildren();
+    if (auto icon = partyui::makeDifficultyIcon(settings.difficulty, 0.18f)) {
+        icon->setPosition({0.0f, 0.0f});
+        m_difficultyIconNode->addChild(icon);
     }
 }
 
 void PartyPopup::rebuildPlayerList() {
-    if (!m_playerListLayer) {
+    if (!m_playerListLayer || !m_shell) {
         return;
     }
 
@@ -338,81 +454,85 @@ void PartyPopup::rebuildPlayerList() {
 
     auto const& state = PartyManager::get().state();
     auto gameManager = GameManager::sharedState();
-    auto shown = std::min<std::size_t>(state.players.size(), 3);
+    auto shellSize = m_shell->getContentSize();
+    auto shown = std::min<std::size_t>(state.players.size(), 5);
+    auto topY = shellSize.height - 103.0f;
+    constexpr float RowHeight = 25.0f;
 
     for (std::size_t index = 0; index < shown; ++index) {
         auto const& player = state.players[index];
-        auto y = 168.0f - static_cast<float>(index) * 27.0f;
+        auto y = topY - static_cast<float>(index) * RowHeight;
 
-        if (index > 0) {
-            partyui::addDivider(m_playerListLayer, 31.0f, y + 13.0f, 358.0f);
+        if (index % 2 == 1) {
+            auto rowShade = CCLayerColor::create(ccc4(255, 255, 255, 10), shellSize.width - 50.0f, RowHeight);
+            rowShade->setPosition({25.0f, y - RowHeight / 2.0f});
+            m_playerListLayer->addChild(rowShade);
         }
 
         auto icon = SimplePlayer::create(std::max(1, player.cubeIcon));
-        icon->setScale(0.34f);
-        icon->setPosition({48.0f, y});
-
+        icon->setScale(0.31f);
+        icon->setPosition({43.0f, y});
         if (gameManager) {
             icon->m_firstLayer->setColor(gameManager->colorForIdx(player.color1));
             icon->m_secondLayer->setColor(gameManager->colorForIdx(player.color2));
         }
-        m_playerListLayer->addChild(icon);
+        m_playerListLayer->addChild(icon, 3);
 
         auto nameLabel = partyui::addLabel(
             m_playerListLayer,
             player.name,
-            "chatFont.fnt",
-            0.48f,
-            {68.0f, y + 1.0f}
+            "bigFont.fnt",
+            0.31f,
+            {61.0f, y}
         );
-        nameLabel->limitLabelWidth(120.0f, 0.48f, 0.32f);
+        nameLabel->limitLabelWidth(126.0f, 0.31f, 0.22f);
 
         if (player.accountId == state.hostAccountId) {
             auto hostLabel = partyui::addLabel(
                 m_playerListLayer,
                 "HOST",
                 "goldFont.fnt",
-                0.2f,
-                {192.0f, y + 1.0f}
+                0.18f,
+                {191.0f, y}
             );
             hostLabel->setOpacity(220);
         }
 
         std::string status;
-        char const* statusFont = "chatFont.fnt";
+        char const* font = "chatFont.fnt";
         if (state.phase == PartyPhase::Lobby) {
             status = player.ready ? "READY" : "WAITING";
-            statusFont = player.ready ? "goldFont.fnt" : "chatFont.fnt";
+            font = player.ready ? "goldFont.fnt" : "chatFont.fnt";
         } else if (player.finished) {
             status = "FINISHED";
-            statusFont = "goldFont.fnt";
+            font = "goldFont.fnt";
         } else if (state.settings.gameMode == GameModeType::RecentRush) {
-            status = fmt::format("Best {}%  |  L{}", player.progress, player.rouletteTarget);
+            status = fmt::format("BEST {}%   LEVEL {}", player.progress, player.rouletteTarget);
         } else {
-            status = fmt::format("Best {}%  |  {}%", player.progress, player.rouletteTarget);
+            status = fmt::format("BEST {}%   TARGET {}%", player.progress, player.rouletteTarget);
         }
 
         auto statusLabel = partyui::addLabel(
             m_playerListLayer,
             status,
-            statusFont,
-            0.34f,
-            {384.0f, y + 1.0f},
+            font,
+            0.27f,
+            {shellSize.width - 31.0f, y},
             {1.0f, 0.5f}
         );
-        statusLabel->limitLabelWidth(150.0f, 0.34f, 0.25f);
+        statusLabel->limitLabelWidth(170.0f, 0.27f, 0.2f);
     }
 
     if (state.players.size() > shown) {
-        auto moreLabel = partyui::addLabel(
+        auto more = partyui::addLabel(
             m_playerListLayer,
             fmt::format("+{} more", state.players.size() - shown),
             "chatFont.fnt",
-            0.3f,
-            {210.0f, 104.0f},
+            0.27f,
+            {shellSize.width / 2.0f, topY - static_cast<float>(shown) * RowHeight + 2.0f},
             {0.5f, 0.5f}
         );
-        moreLabel->setOpacity(180);
+        more->setOpacity(150);
     }
 }
 
@@ -445,14 +565,14 @@ void PartyPopup::onStart(CCObject*) {
 }
 
 void PartyPopup::onSettings(CCObject*) {
-    if (auto popup = PartySettingsPopup::create()) {
-        popup->show();
+    if (auto layer = PartySettingsPopup::create()) {
+        layer->switchTo();
     }
 }
 
 void PartyPopup::onLeaderboard(CCObject*) {
-    if (auto popup = LeaderboardPopup::create()) {
-        popup->show();
+    if (auto layer = LeaderboardPopup::create()) {
+        layer->switchTo();
     }
 }
 
