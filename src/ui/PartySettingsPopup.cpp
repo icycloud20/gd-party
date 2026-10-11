@@ -72,7 +72,7 @@ bool PartySettingsPopup::init() {
     }
 
     auto windowSize = CCDirector::sharedDirector()->getWinSize();
-    auto center = windowSize / 2.0f;
+    auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
     auto shellSize = CCSize{382.0f, 244.0f};
 
     auto title = partyui::addLabel(
