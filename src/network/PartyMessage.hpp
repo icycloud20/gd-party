@@ -14,7 +14,9 @@ enum class PartyMessageType : std::uint8_t {
     PlayerReady = 4,
     StartMatch = 5,
     ReachedTarget = 6,
-    LeaveParty = 7
+    LeaveParty = 7,
+    AttemptEnded = 8,
+    AdvanceRound = 9
 };
 
 struct PartyMessage {
