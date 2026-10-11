@@ -2,8 +2,6 @@
 
 #include "PartyManager.hpp"
 
-#include <Geode/utils/cocos.hpp>
-
 using namespace geode::prelude;
 
 namespace gdparty {
@@ -28,7 +26,7 @@ void PartyLevelLoader::openAssignedLevel() {
 }
 
 void PartyLevelLoader::openLevel(int levelId) {
-    if (levelId <= 0 || isAlreadyPlaying(levelId)) {
+    if (levelId <= 0 || isAlreadyShowing(levelId)) {
         return;
     }
 
@@ -53,7 +51,7 @@ void PartyLevelLoader::openLevel(int levelId) {
 
     if (levelManager->hasDownloadedLevel(levelId)) {
         if (auto savedLevel = levelManager->getSavedLevel(levelId)) {
-            playLevel(savedLevel);
+            showLevelPage(savedLevel);
             clearRequest();
             return;
         }
@@ -88,7 +86,7 @@ void PartyLevelLoader::levelDownloadFinished(GJGameLevel* level) {
     }
 
     log::info("GD Party finished downloading level {}", expectedLevelId);
-    playLevel(level);
+    showLevelPage(level);
     clearRequest();
 }
 
@@ -98,36 +96,32 @@ void PartyLevelLoader::levelDownloadFailed(int errorCode) {
     clearRequest();
 
     Notification::create(
-        fmt::format("Failed to load roulette level {}", failedLevelId),
+        fmt::format("Failed to load party level {}", failedLevelId),
         NotificationIcon::Error
     )->show();
 }
 
-void PartyLevelLoader::playLevel(GJGameLevel* level) {
-    if (!level || isAlreadyPlaying(level->m_levelID.value())) {
+void PartyLevelLoader::showLevelPage(GJGameLevel* level) {
+    if (!level || isAlreadyShowing(level->m_levelID.value())) {
         return;
     }
 
-    auto audioEngine = FMODAudioEngine::sharedEngine();
-    if (audioEngine) {
-        audioEngine->stopAllMusic(true);
-        audioEngine->playEffect("playSound_01.ogg", 1.0f, 0.0f, 0.3f);
-    }
+    PlatformToolbox::showCursor();
 
     if (auto gameManager = GameManager::sharedState()) {
         gameManager->m_sceneEnum = 3;
     }
 
-    auto playScene = PlayLayer::scene(level, false, false);
-    if (!playScene) {
-        Notification::create("Could not open roulette level", NotificationIcon::Error)->show();
+    auto levelScene = LevelInfoLayer::scene(level, false);
+    if (!levelScene) {
+        Notification::create("Could not open party level", NotificationIcon::Error)->show();
         return;
     }
 
-    CCDirector::sharedDirector()->replaceScene(CCTransitionFade::create(0.25f, playScene));
+    CCDirector::sharedDirector()->replaceScene(CCTransitionFade::create(0.2f, levelScene));
 }
 
-bool PartyLevelLoader::isAlreadyPlaying(int levelId) const {
+bool PartyLevelLoader::isAlreadyShowing(int levelId) const {
     auto director = CCDirector::sharedDirector();
     if (!director) {
         return false;
@@ -138,8 +132,17 @@ bool PartyLevelLoader::isAlreadyPlaying(int levelId) const {
         return false;
     }
 
-    auto playLayer = scene->getChildByType<PlayLayer>(0);
-    return playLayer && playLayer->m_level && playLayer->m_level->m_levelID.value() == levelId;
+    if (auto playLayer = scene->getChildByType<PlayLayer>(0)) {
+        if (playLayer->m_level && playLayer->m_level->m_levelID.value() == levelId) {
+            return true;
+        }
+    }
+
+    if (auto levelInfoLayer = scene->getChildByType<LevelInfoLayer>(0)) {
+        return levelInfoLayer->m_level && levelInfoLayer->m_level->m_levelID.value() == levelId;
+    }
+
+    return false;
 }
 
 void PartyLevelLoader::clearRequest() {
