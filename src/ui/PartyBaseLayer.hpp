@@ -11,6 +11,8 @@ public:
     void keyBackClicked() override;
 
 protected:
+    void onBack(cocos2d::CCObject* sender);
+
     cocos2d::CCSprite* m_background = nullptr;
     cocos2d::CCMenu* m_backMenu = nullptr;
     CCMenuItemSpriteExtra* m_backButton = nullptr;
