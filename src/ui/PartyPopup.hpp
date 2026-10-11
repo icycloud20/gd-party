@@ -30,6 +30,7 @@ private:
     cocos2d::CCLabelBMFont* m_targetLabel = nullptr;
     cocos2d::CCLabelBMFont* m_roundLabel = nullptr;
     cocos2d::CCNode* m_playerListLayer = nullptr;
+    cocos2d::CCNode* m_difficultyIconNode = nullptr;
 
     CCMenuItemSpriteExtra* m_createButton = nullptr;
     CCMenuItemSpriteExtra* m_joinButton = nullptr;
