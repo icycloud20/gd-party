@@ -15,6 +15,8 @@ using namespace geode::prelude;
 namespace gdparty {
 namespace {
 
+constexpr int RecentRushPoolSize = 200;
+
 struct LocalAppearance {
     int cubeIcon = 1;
     int color1 = 0;
@@ -252,12 +254,12 @@ void PartyManager::setMaxAttempts(int maxAttempts) {
     broadcastSnapshot();
 }
 
-void PartyManager::setRecentPoolSize(int recentPoolSize) {
+void PartyManager::setRecentPoolSize(int) {
     if (!isHost() || m_state.phase != PartyPhase::Lobby) {
         return;
     }
 
-    m_state.settings.recentPoolSize = std::clamp(recentPoolSize, 10, 500);
+    m_state.settings.recentPoolSize = RecentRushPoolSize;
     broadcastSnapshot();
 }
 
@@ -275,25 +277,44 @@ bool PartyManager::startMatch() {
         return false;
     }
 
-    if (m_state.settings.gameMode != GameModeType::RouletteRace) {
+    if (m_state.settings.gameMode != GameModeType::RouletteRace &&
+        m_state.settings.gameMode != GameModeType::RecentRush) {
         Notification::create("That mode is not playable yet", NotificationIcon::Warning)->show();
         return false;
     }
 
     auto now = std::chrono::steady_clock::now().time_since_epoch().count();
     m_state.settings.seed = static_cast<std::uint64_t>(now) ^ static_cast<std::uint64_t>(m_state.roomId);
+    m_state.settings.recentPoolSize = RecentRushPoolSize;
     m_state.winnerAccountId = 0;
     m_lastReportedTarget = 0;
     m_pendingRoundAdvanceOpen = false;
 
-    RouletteRace rouletteRace;
-    rouletteRace.begin(m_state);
+    if (m_state.settings.gameMode == GameModeType::RouletteRace) {
+        RouletteRace rouletteRace;
+        rouletteRace.begin(m_state);
+    } else {
+        m_state.phase = PartyPhase::Playing;
+        for (auto& player : m_state.players) {
+            player.finished = false;
+            player.roundSecured = false;
+            player.progress = 0;
+            player.rouletteTarget = 1;
+            player.currentLevelId = 0;
+            player.attemptCount = 0;
+        }
+    }
+
     beginRouletteLevelAssignment();
     return true;
 }
 
 void PartyManager::reportLocalProgress(int progress, int levelId) {
     if (!canUseParty() || !m_state.active || m_state.phase != PartyPhase::Playing) {
+        return;
+    }
+
+    if (m_state.settings.gameMode == GameModeType::RecentRush) {
         return;
     }
 
@@ -343,7 +364,8 @@ void PartyManager::reportAttemptEnded(int progress, int levelId) {
 }
 
 bool PartyManager::requestAdvanceRound(int achievedProgress) {
-    if (!canUseParty() || !m_state.active || m_state.phase != PartyPhase::Playing) {
+    if (!canUseParty() || !m_state.active || m_state.phase != PartyPhase::Playing ||
+        m_state.settings.gameMode != GameModeType::RouletteRace) {
         return false;
     }
 
@@ -391,6 +413,7 @@ PartyPlayer const* PartyManager::findPlayer(int accountId) const {
 
 void PartyManager::resetForCurrentRoom() {
     m_state = {};
+    m_state.settings.recentPoolSize = RecentRushPoolSize;
     m_lastReportedTarget = 0;
     m_pendingRoundAdvanceOpen = false;
     m_levelByTarget.clear();
@@ -465,7 +488,7 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
             break;
 
         case PartyMessageType::ReachedTarget: {
-            if (m_state.phase != PartyPhase::Playing) {
+            if (m_state.phase != PartyPhase::Playing || m_state.settings.gameMode != GameModeType::RouletteRace) {
                 return;
             }
 
@@ -491,11 +514,50 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
             }
 
             auto player = findMutablePlayer(message.senderAccountId);
-            if (!player || player->finished || player->currentLevelId != message.valueB) {
+            if (!player || player->finished ||
+                player->currentLevelId != message.valueB ||
+                player->rouletteTarget != static_cast<int>(message.valueC)) {
                 return;
             }
 
-            player->progress = std::max(player->progress, std::clamp(message.valueA, 0, 100));
+            auto attemptProgress = std::clamp(message.valueA, 0, 100);
+
+            if (m_state.settings.gameMode == GameModeType::RecentRush) {
+                player->progress = std::max(player->progress, attemptProgress);
+                ++player->attemptCount;
+
+                if (attemptProgress >= m_state.settings.targetProgress) {
+                    player->finished = true;
+                    player->roundSecured = true;
+                    m_state.winnerAccountId = player->accountId;
+                    m_state.phase = PartyPhase::Results;
+                    m_pendingRoundAdvanceOpen = false;
+                    broadcastSnapshot();
+                    break;
+                }
+
+                if (player->attemptCount >= m_state.settings.maxAttempts) {
+                    ++player->rouletteTarget;
+                    player->attemptCount = 0;
+                    player->roundSecured = false;
+                    player->currentLevelId = 0;
+
+                    if (player->rouletteTarget > RecentRushPoolSize) {
+                        player->rouletteTarget = 1;
+                    }
+
+                    if (message.senderAccountId == m_transport->localAccountId()) {
+                        m_pendingRoundAdvanceOpen = true;
+                    }
+
+                    assignPlayerToTarget(player->accountId, player->rouletteTarget);
+                }
+
+                broadcastSnapshot();
+                break;
+            }
+
+            player->progress = std::max(player->progress, attemptProgress);
             player->roundSecured = player->progress >= player->rouletteTarget;
             ++player->attemptCount;
             broadcastSnapshot();
@@ -503,7 +565,7 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
         }
 
         case PartyMessageType::AdvanceRound: {
-            if (m_state.phase != PartyPhase::Playing) {
+            if (m_state.phase != PartyPhase::Playing || m_state.settings.gameMode != GameModeType::RouletteRace) {
                 return;
             }
 
@@ -608,14 +670,21 @@ void PartyManager::applySnapshot(PartyMessage const& message) {
         m_state.phase == PartyPhase::Playing &&
         player->currentLevelId > 0 &&
         (player->currentLevelId != oldLevelId || player->rouletteTarget != oldTarget);
+    auto advancedRecentLevel =
+        m_state.settings.gameMode == GameModeType::RecentRush &&
+        oldPhase == PartyPhase::Playing &&
+        m_state.phase == PartyPhase::Playing &&
+        player->currentLevelId > 0 &&
+        (player->currentLevelId != oldLevelId || player->rouletteTarget != oldTarget);
 
-    if (startedMatch || advancedRound) {
+    if (startedMatch || advancedRound || advancedRecentLevel) {
         m_pendingRoundAdvanceOpen = false;
         queueAssignedLevelOpen();
     }
 
     if (m_state.phase == PartyPhase::Results) {
         m_pendingRoundAdvanceOpen = false;
+        PlatformToolbox::showCursor();
     }
 }
 
@@ -708,10 +777,11 @@ void PartyManager::assignPlayerToTarget(int accountId, int target) {
         return;
     }
 
+    auto recentOnly = m_state.settings.gameMode == GameModeType::RecentRush;
     RandomLevelProvider::get().request(
         m_state.settings.difficulty,
-        false,
-        m_state.settings.recentPoolSize,
+        recentOnly,
+        recentOnly ? RecentRushPoolSize : m_state.settings.recentPoolSize,
         seedForTarget(target),
         m_usedLevelIds,
         [this, target](std::optional<int> levelId) {
@@ -735,12 +805,19 @@ void PartyManager::resolveTargetLevel(int target, std::optional<int> levelId) {
         return;
     }
 
-    auto chosenLevelId = levelId.value_or(RouletteRace::levelForTarget(m_state.settings.seed, target));
     if (!levelId) {
-        log::warn("GD Party is using a fallback roulette level for target {}", target);
-        Notification::create("Filtered level search failed; using a fallback level", NotificationIcon::Warning)->show();
+        log::error("GD Party could not resolve a filtered level for slot {}", target);
+        Notification::create("Could not find a level matching the selected difficulty", NotificationIcon::Error)->show();
+        m_state.phase = PartyPhase::Lobby;
+        for (auto& player : m_state.players) {
+            player.ready = false;
+            player.currentLevelId = 0;
+        }
+        broadcastSnapshot();
+        return;
     }
 
+    auto chosenLevelId = *levelId;
     m_levelByTarget[target] = chosenLevelId;
     m_usedLevelIds.insert(chosenLevelId);
 
