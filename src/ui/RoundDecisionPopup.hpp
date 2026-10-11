@@ -8,6 +8,7 @@ namespace gdparty {
 class RoundDecisionPopup : public geode::Popup {
 protected:
     bool init(int achievedProgress);
+    void keyDown(cocos2d::enumKeyCodes key, double timestamp) override;
 
 private:
     void onNextLevel(cocos2d::CCObject* sender);
