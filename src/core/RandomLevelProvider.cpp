@@ -27,7 +27,7 @@ char const* difficultyQuery(DifficultyFilter difficulty) {
         case DifficultyFilter::HardDemon:
         case DifficultyFilter::InsaneDemon:
         case DifficultyFilter::ExtremeDemon:
-            return "-2";
+            return "6";
         case DifficultyFilter::Easy:
             return "1";
         case DifficultyFilter::Normal:
@@ -40,22 +40,22 @@ char const* difficultyQuery(DifficultyFilter difficulty) {
             return "5";
         case DifficultyFilter::RandomAllExceptAuto:
         default:
-            return "1,2,3,4,5,-2";
+            return "1,2,3,4,5,6";
     }
 }
 
 int demonFilterValue(DifficultyFilter difficulty) {
     switch (difficulty) {
         case DifficultyFilter::EasyDemon:
-            return 1;
+            return static_cast<int>(GJDifficulty::DemonEasy);
         case DifficultyFilter::MediumDemon:
-            return 2;
+            return static_cast<int>(GJDifficulty::DemonMedium);
         case DifficultyFilter::HardDemon:
-            return 3;
+            return static_cast<int>(GJDifficulty::Demon);
         case DifficultyFilter::InsaneDemon:
-            return 4;
+            return static_cast<int>(GJDifficulty::DemonInsane);
         case DifficultyFilter::ExtremeDemon:
-            return 5;
+            return static_cast<int>(GJDifficulty::DemonExtreme);
         default:
             return 0;
     }
