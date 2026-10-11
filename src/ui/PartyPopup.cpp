@@ -207,14 +207,24 @@ void PartyPopup::refresh() {
         return;
     }
 
+    if (state.phase == PartyPhase::Countdown) {
+        m_statusLabel->setString("Finding a level...");
+        m_roundLabel->setString("Selecting a rated level that matches the filter.");
+        return;
+    }
+
     if (state.phase == PartyPhase::Playing) {
         m_statusLabel->setString(modeName(state.settings.gameMode));
-        m_roundLabel->setString(
-            PartyLevelLoader::get().isLoading()
-                ? fmt::format("Loading level {}...", localPlayer->currentLevelId).c_str()
-                : fmt::format("Reach {}%  |  Level {}", localPlayer->rouletteTarget, localPlayer->currentLevelId).c_str()
-        );
-        setVisible(m_openLevelButton, !PartyLevelLoader::get().isLoading());
+
+        if (localPlayer->currentLevelId <= 0) {
+            m_roundLabel->setString("Finding your next level...");
+        } else if (PartyLevelLoader::get().isLoading()) {
+            m_roundLabel->setString(fmt::format("Loading level {}...", localPlayer->currentLevelId).c_str());
+        } else {
+            m_roundLabel->setString(fmt::format("Reach {}%  |  Level {}", localPlayer->rouletteTarget, localPlayer->currentLevelId).c_str());
+            setVisible(m_openLevelButton, true);
+        }
+
         setVisible(m_leaderboardButton, true);
         return;
     }
