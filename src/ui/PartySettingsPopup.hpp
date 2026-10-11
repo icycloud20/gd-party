@@ -38,6 +38,12 @@ private:
     cocos2d::CCNode* m_attemptsRow = nullptr;
     cocos2d::CCNode* m_recentPoolRow = nullptr;
 
+    CCMenuItemSpriteExtra* m_overrunButton = nullptr;
+    CCMenuItemSpriteExtra* m_attemptsDownButton = nullptr;
+    CCMenuItemSpriteExtra* m_attemptsUpButton = nullptr;
+    CCMenuItemSpriteExtra* m_recentPoolDownButton = nullptr;
+    CCMenuItemSpriteExtra* m_recentPoolUpButton = nullptr;
+
 public:
     static PartySettingsPopup* create();
 };
