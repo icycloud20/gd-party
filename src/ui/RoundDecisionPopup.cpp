@@ -175,7 +175,7 @@ void RoundDecisionPopup::tick(float) {
 
     if (player && player->currentLevelId > 0 && player->currentLevelId != m_context.sourceLevelId) {
         closeOverlay();
-        PartyLevelLoader::get().openAssignedLevel();
+        PartyLevelLoader::get().openAssignedLevelFromDecision();
     }
 }
 
@@ -223,7 +223,7 @@ void RoundDecisionPopup::onNextLevel(CCObject*) {
         }
 
         closeOverlay();
-        PartyLevelLoader::get().openAssignedLevel();
+        PartyLevelLoader::get().openAssignedLevelFromDecision();
         return;
     }
 
