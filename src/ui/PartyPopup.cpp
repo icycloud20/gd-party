@@ -1,5 +1,6 @@
 #include "PartyPopup.hpp"
 
+#include "../core/PartyLevelLoader.hpp"
 #include "../core/PartyManager.hpp"
 
 #include <Geode/utils/cocos.hpp>
@@ -50,8 +51,8 @@ std::string playerListText(PartyManager const& manager) {
             text += player.ready ? "  READY" : "  ...";
         } else if (state.phase == PartyPhase::Playing) {
             text += "  ";
-            text += std::to_string(player.rouletteTarget);
-            text += "%";
+            text += std::to_string(std::max(0, player.rouletteTarget - 1));
+            text += "% cleared";
         }
 
         ++shown;
@@ -116,7 +117,7 @@ bool PartyPopup::init() {
     m_readyButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onReady), "Ready", {165.0f, 70.0f});
     m_unreadyButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onUnready), "Unready", {165.0f, 70.0f}, 100.0f, "GJ_button_06.png");
     m_startButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onStart), "Start", {270.0f, 70.0f});
-    m_openLevelButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onOpenLevel), "Open Level", {215.0f, 70.0f}, 120.0f);
+    m_openLevelButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onOpenLevel), "Retry Level", {215.0f, 70.0f}, 120.0f);
     m_leaveButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onLeaveParty), "Leave", {368.0f, 34.0f}, 75.0f, "GJ_button_06.png");
 
     m_targetDownButton = makeButton(buttonMenu, this, menu_selector(PartyPopup::onTargetDown), "-", {292.0f, 132.0f}, 36.0f, "GJ_button_05.png");
@@ -162,10 +163,10 @@ void PartyPopup::refresh() {
     if (!transport || !transport->available()) {
         auto globed = Loader::get()->getInstalledMod("dankmeme.globed2");
         if (globed && globed->isOrWillBeEnabled()) {
-            m_statusLabel->setString("Globed 2.2.3+ API is required");
-            m_playersLabel->setString("Globed 2.2.2 has a known API bug.\nUse 2.2.3+ or the official nightly build.");
+            m_statusLabel->setString("API-fixed Globed build required");
+            m_playersLabel->setString("Use Globed 2.2.3 beta 2+\nor the official nightly build.");
         } else {
-            m_statusLabel->setString("Globed 2.2.3+ is required");
+            m_statusLabel->setString("Globed is required");
             m_playersLabel->setString("Install or enable Globed first.");
         }
         m_roundLabel->setString("");
@@ -220,8 +221,12 @@ void PartyPopup::refresh() {
 
     if (state.phase == PartyPhase::Playing) {
         m_statusLabel->setString("Roulette Race in progress");
-        m_roundLabel->setString(fmt::format("Reach {}%  |  Level {}", localPlayer->rouletteTarget, localPlayer->currentLevelId).c_str());
-        setVisible(m_openLevelButton, true);
+        m_roundLabel->setString(
+            PartyLevelLoader::get().isLoading()
+                ? fmt::format("Loading level {}...", localPlayer->currentLevelId).c_str()
+                : fmt::format("Reach {}%  |  Level {}", localPlayer->rouletteTarget, localPlayer->currentLevelId).c_str()
+        );
+        setVisible(m_openLevelButton, !PartyLevelLoader::get().isLoading());
         return;
     }
 
@@ -275,14 +280,8 @@ void PartyPopup::onTargetUp(CCObject*) {
 }
 
 void PartyPopup::onOpenLevel(CCObject*) {
-    auto player = PartyManager::get().localPlayer();
-    if (!player || player->currentLevelId <= 0) {
-        return;
-    }
-
-    auto searchObject = GJSearchObject::create(SearchType::Search, std::to_string(player->currentLevelId));
-    auto scene = LevelBrowserLayer::scene(searchObject);
-    CCDirector::sharedDirector()->replaceScene(CCTransitionFade::create(0.35f, scene));
+    PartyLevelLoader::get().openAssignedLevel();
+    refresh();
 }
 
 void PartyPopup::onLeaveParty(CCObject*) {
