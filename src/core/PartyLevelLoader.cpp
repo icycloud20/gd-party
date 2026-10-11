@@ -61,7 +61,7 @@ void PartyLevelLoader::openLevel(int levelId) {
 
     m_loading = true;
     levelManager->m_levelDownloadDelegate = this;
-    levelManager->downloadLevel(levelId, true);
+    levelManager->downloadLevel(levelId, false, 0);
 
     log::info("GD Party downloading assigned level {}", levelId);
 }
