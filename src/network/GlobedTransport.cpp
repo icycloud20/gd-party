@@ -47,9 +47,8 @@ void sendEvent(PartyMessage const& message, std::optional<int> targetAccountId) 
 
 bool GlobedTransport::available() const {
     // Globed v2.2.2 has a known bug where API functions may not be available.
-    // v2.2.3 fixes this upstream, so GD Party only enables networking once the
-    // fixed API is present.
-    return m_apiReady && globed::api::available() && globed::api::isAtLeast("v2.2.3");
+    // v2.2.3-beta.2 contains the upstream API fix used by the official nightly.
+    return m_apiReady && globed::api::available() && globed::api::isAtLeast("v2.2.3-beta.2");
 }
 
 bool GlobedTransport::connected() const {
