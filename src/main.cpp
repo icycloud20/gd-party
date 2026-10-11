@@ -3,7 +3,6 @@
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 
-#include "core/PartyLevelLoader.hpp"
 #include "core/PartyManager.hpp"
 #include "network/GlobedTransport.hpp"
 #include "ui/PartyPopup.hpp"
@@ -47,8 +46,8 @@ class $modify(GDPartyMenuLayer, MenuLayer) {
 
     void onPartyButton(CCObject*) {
         PlatformToolbox::showCursor();
-        if (auto popup = gdparty::PartyPopup::create()) {
-            popup->show();
+        if (auto layer = gdparty::PartyPopup::create()) {
+            layer->switchTo();
         }
     }
 };
@@ -152,20 +151,6 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
             if (m_fields->attemptLabel) {
                 m_fields->attemptLabel->setVisible(false);
             }
-
-            auto const& state = partyManager.state();
-            auto localPlayer = partyManager.localPlayer();
-            if (
-                m_fields->blockRestart &&
-                state.phase == gdparty::PartyPhase::Playing &&
-                localPlayer &&
-                localPlayer->currentLevelId > 0 &&
-                this->m_level &&
-                localPlayer->currentLevelId != this->m_level->m_levelID.value()
-            ) {
-                m_fields->blockRestart = false;
-                gdparty::PartyLevelLoader::get().openAssignedLevel();
-            }
             return;
         }
 
@@ -182,55 +167,54 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
 
     void destroyPlayer(PlayerObject* player, GameObject* object) {
         auto shouldShowDecision = false;
-        auto shouldShowResults = false;
-        auto achievedProgress = 0;
+        gdparty::RoundDecisionContext decisionContext;
 
         if (isPartyRunActive() && !m_fields->decisionShown) {
             auto& manager = gdparty::PartyManager::get();
             auto const& state = manager.state();
             auto localPlayer = manager.localPlayer();
-
-            achievedProgress = std::max(
+            auto levelId = this->m_level->m_levelID.value();
+            auto achievedProgress = std::max(
                 m_fields->bestThisAttempt,
                 std::clamp(this->getCurrentPercentInt(), 0, 100)
             );
 
-            manager.reportAttemptEnded(
-                achievedProgress,
-                this->m_level->m_levelID.value()
-            );
+            if (localPlayer) {
+                decisionContext.achievedProgress = achievedProgress;
+                decisionContext.sourceLevelId = levelId;
+                decisionContext.sourceTarget = localPlayer->rouletteTarget;
+                decisionContext.attemptNumber = localPlayer->attemptCount + 1;
+                decisionContext.maxAttempts = state.settings.maxAttempts;
+                decisionContext.recentRush = state.settings.gameMode == gdparty::GameModeType::RecentRush;
+                decisionContext.requiredProgress = decisionContext.recentRush
+                    ? state.settings.targetProgress
+                    : localPlayer->rouletteTarget;
 
-            if (state.settings.gameMode == gdparty::GameModeType::RecentRush) {
-                auto reachedGoal = achievedProgress >= state.settings.targetProgress;
-                auto exhaustedLevel = localPlayer &&
-                    localPlayer->attemptCount + 1 >= state.settings.maxAttempts;
-
-                if (reachedGoal || exhaustedLevel) {
-                    m_fields->blockRestart = true;
-                    m_fields->decisionShown = true;
+                if (decisionContext.recentRush) {
+                    auto reachedGoal = achievedProgress >= state.settings.targetProgress;
+                    auto exhaustedLevel = decisionContext.attemptNumber >= state.settings.maxAttempts;
+                    decisionContext.goalReached = reachedGoal;
+                    shouldShowDecision = reachedGoal || exhaustedLevel;
+                } else {
+                    shouldShowDecision = achievedProgress >= localPlayer->rouletteTarget;
                 }
-                shouldShowResults = reachedGoal;
-            } else if (localPlayer && achievedProgress >= localPlayer->rouletteTarget) {
+            }
+
+            manager.reportAttemptEnded(achievedProgress, levelId);
+
+            if (shouldShowDecision) {
                 m_fields->blockRestart = true;
                 m_fields->decisionShown = true;
-                shouldShowDecision = true;
             }
         }
 
         PlayLayer::destroyPlayer(player, object);
 
         if (shouldShowDecision) {
-            Loader::get()->queueInMainThread([achievedProgress] {
+            Loader::get()->queueInMainThread([decisionContext] {
                 PlatformToolbox::showCursor();
-                if (auto popup = gdparty::RoundDecisionPopup::create(achievedProgress)) {
-                    popup->show();
-                }
-            });
-        } else if (shouldShowResults) {
-            Loader::get()->queueInMainThread([] {
-                PlatformToolbox::showCursor();
-                if (auto popup = gdparty::PartyPopup::create()) {
-                    popup->show();
+                if (auto overlay = gdparty::RoundDecisionPopup::create(decisionContext)) {
+                    overlay->show();
                 }
             });
         }
@@ -238,48 +222,45 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
 
     void levelComplete() {
         auto shouldShowDecision = false;
-        auto shouldShowResults = false;
+        gdparty::RoundDecisionContext decisionContext;
 
         if (isPartyRunActive() && !m_fields->decisionShown) {
             auto& manager = gdparty::PartyManager::get();
             auto const& state = manager.state();
             auto localPlayer = manager.localPlayer();
+            auto levelId = this->m_level->m_levelID.value();
             constexpr int AchievedProgress = 100;
 
-            manager.reportLocalProgress(
-                AchievedProgress,
-                this->m_level->m_levelID.value()
-            );
-            manager.reportAttemptEnded(
-                AchievedProgress,
-                this->m_level->m_levelID.value()
-            );
-
-            if (state.settings.gameMode == gdparty::GameModeType::RecentRush) {
-                m_fields->blockRestart = true;
-                m_fields->decisionShown = true;
-                shouldShowResults = true;
-            } else if (localPlayer && AchievedProgress >= localPlayer->rouletteTarget) {
-                m_fields->blockRestart = true;
-                m_fields->decisionShown = true;
+            if (localPlayer) {
+                decisionContext.achievedProgress = AchievedProgress;
+                decisionContext.sourceLevelId = levelId;
+                decisionContext.sourceTarget = localPlayer->rouletteTarget;
+                decisionContext.attemptNumber = localPlayer->attemptCount + 1;
+                decisionContext.maxAttempts = state.settings.maxAttempts;
+                decisionContext.recentRush = state.settings.gameMode == gdparty::GameModeType::RecentRush;
+                decisionContext.requiredProgress = decisionContext.recentRush
+                    ? state.settings.targetProgress
+                    : localPlayer->rouletteTarget;
+                decisionContext.goalReached = decisionContext.recentRush;
                 shouldShowDecision = true;
+            }
+
+            manager.reportLocalProgress(AchievedProgress, levelId);
+            manager.reportAttemptEnded(AchievedProgress, levelId);
+
+            if (shouldShowDecision) {
+                m_fields->blockRestart = true;
+                m_fields->decisionShown = true;
             }
         }
 
         PlayLayer::levelComplete();
 
         if (shouldShowDecision) {
-            Loader::get()->queueInMainThread([] {
+            Loader::get()->queueInMainThread([decisionContext] {
                 PlatformToolbox::showCursor();
-                if (auto popup = gdparty::RoundDecisionPopup::create(100)) {
-                    popup->show();
-                }
-            });
-        } else if (shouldShowResults) {
-            Loader::get()->queueInMainThread([] {
-                PlatformToolbox::showCursor();
-                if (auto popup = gdparty::PartyPopup::create()) {
-                    popup->show();
+                if (auto overlay = gdparty::RoundDecisionPopup::create(decisionContext)) {
+                    overlay->show();
                 }
             });
         }
