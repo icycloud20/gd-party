@@ -140,7 +140,7 @@ GJSearchObject* RandomLevelProvider::makeSearchObject(Request const& request) co
 }
 
 bool RandomLevelProvider::matchesDifficulty(GJGameLevel* level, DifficultyFilter difficulty) const {
-    if (!level || level->m_stars <= 0 || level->m_autoLevel) {
+    if (!level || level->m_stars <= 0 || level->m_autoLevel || level->isPlatformer()) {
         return false;
     }
 
