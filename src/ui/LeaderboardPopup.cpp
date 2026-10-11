@@ -27,7 +27,7 @@ bool LeaderboardPopup::init() {
     }
 
     auto windowSize = CCDirector::sharedDirector()->getWinSize();
-    auto center = windowSize / 2.0f;
+    auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
     auto listSize = CCSize{390.0f, 246.0f};
 
     partyui::addLabel(
