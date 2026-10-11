@@ -1,10 +1,11 @@
 #pragma once
 
-#include "PartyBaseLayer.hpp"
+#include <Geode/Geode.hpp>
+#include <Geode/ui/Popup.hpp>
 
 namespace gdparty {
 
-class PartySettingsPopup : public PartyBaseLayer {
+class PartySettingsPopup : public geode::Popup {
 public:
     static PartySettingsPopup* create();
 
@@ -26,7 +27,6 @@ private:
     void onAttemptsDown(cocos2d::CCObject* sender);
     void onAttemptsUp(cocos2d::CCObject* sender);
 
-    cocos2d::CCNode* m_shell = nullptr;
     cocos2d::CCLabelBMFont* m_modeValue = nullptr;
     cocos2d::CCLabelBMFont* m_goalValue = nullptr;
     cocos2d::CCLabelBMFont* m_difficultyValue = nullptr;

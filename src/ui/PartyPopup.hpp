@@ -2,6 +2,10 @@
 
 #include "PartyBaseLayer.hpp"
 
+#include <Geode/ui/ScrollLayer.hpp>
+
+#include <cstddef>
+
 namespace gdparty {
 
 class PartyPopup : public PartyBaseLayer {
@@ -28,15 +32,10 @@ private:
     void onLeaveParty(cocos2d::CCObject* sender);
 
     cocos2d::CCNode* m_shell = nullptr;
+    geode::ScrollLayer* m_playerScroll = nullptr;
     cocos2d::CCNode* m_playerListLayer = nullptr;
-    cocos2d::CCNode* m_summaryLayer = nullptr;
-    cocos2d::CCLabelBMFont* m_statusLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_modeLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_difficultyLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_goalLabel = nullptr;
+    cocos2d::CCLabelBMFont* m_titleLabel = nullptr;
     cocos2d::CCLabelBMFont* m_emptyLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_footerLabel = nullptr;
-    cocos2d::CCNode* m_difficultyIconNode = nullptr;
 
     CCMenuItemSpriteExtra* m_createButton = nullptr;
     CCMenuItemSpriteExtra* m_joinButton = nullptr;
@@ -47,6 +46,8 @@ private:
     CCMenuItemSpriteExtra* m_settingsButton = nullptr;
     CCMenuItemSpriteExtra* m_leaderboardButton = nullptr;
     CCMenuItemSpriteExtra* m_leaveButton = nullptr;
+
+    std::size_t m_lastPlayerCount = static_cast<std::size_t>(-1);
 };
 
 } // namespace gdparty

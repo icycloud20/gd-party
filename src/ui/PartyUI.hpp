@@ -67,10 +67,12 @@ inline CCMenuItemSpriteExtra* addArrowButton(
     CCObject* target,
     SEL_MenuHandler callback,
     bool right,
-    CCPoint position
+    CCPoint position,
+    float scale = 0.54f
 ) {
-    auto sprite = CCSprite::createWithSpriteFrameName(right ? "GJ_arrow_03_001.png" : "GJ_arrow_01_001.png");
-    sprite->setScale(0.56f);
+    auto sprite = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
+    sprite->setFlipX(right);
+    sprite->setScale(scale);
     auto button = CCMenuItemSpriteExtra::create(sprite, target, callback);
     button->setPosition(position);
     menu->addChild(button);
