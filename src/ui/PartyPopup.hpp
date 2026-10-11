@@ -1,18 +1,21 @@
 #pragma once
 
-#include <Geode/Geode.hpp>
-#include <Geode/ui/Popup.hpp>
+#include "PartyBaseLayer.hpp"
 
 namespace gdparty {
 
-class PartyPopup : public geode::Popup {
+class PartyPopup : public PartyBaseLayer {
+public:
+    static PartyPopup* create();
+
 protected:
-    bool init() override;
+    bool init();
 
 private:
     void tick(float deltaTime);
     void refresh();
     void rebuildPlayerList();
+    void rebuildMatchSummary();
 
     void onCreateParty(cocos2d::CCObject* sender);
     void onJoinParty(cocos2d::CCObject* sender);
@@ -24,12 +27,15 @@ private:
     void onOpenLevel(cocos2d::CCObject* sender);
     void onLeaveParty(cocos2d::CCObject* sender);
 
+    cocos2d::CCNode* m_shell = nullptr;
+    cocos2d::CCNode* m_playerListLayer = nullptr;
+    cocos2d::CCNode* m_summaryLayer = nullptr;
     cocos2d::CCLabelBMFont* m_statusLabel = nullptr;
     cocos2d::CCLabelBMFont* m_modeLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_playersLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_targetLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_roundLabel = nullptr;
-    cocos2d::CCNode* m_playerListLayer = nullptr;
+    cocos2d::CCLabelBMFont* m_difficultyLabel = nullptr;
+    cocos2d::CCLabelBMFont* m_goalLabel = nullptr;
+    cocos2d::CCLabelBMFont* m_emptyLabel = nullptr;
+    cocos2d::CCLabelBMFont* m_footerLabel = nullptr;
     cocos2d::CCNode* m_difficultyIconNode = nullptr;
 
     CCMenuItemSpriteExtra* m_createButton = nullptr;
@@ -37,13 +43,10 @@ private:
     CCMenuItemSpriteExtra* m_readyButton = nullptr;
     CCMenuItemSpriteExtra* m_unreadyButton = nullptr;
     CCMenuItemSpriteExtra* m_startButton = nullptr;
+    CCMenuItemSpriteExtra* m_openLevelButton = nullptr;
     CCMenuItemSpriteExtra* m_settingsButton = nullptr;
     CCMenuItemSpriteExtra* m_leaderboardButton = nullptr;
-    CCMenuItemSpriteExtra* m_openLevelButton = nullptr;
     CCMenuItemSpriteExtra* m_leaveButton = nullptr;
-
-public:
-    static PartyPopup* create();
 };
 
 } // namespace gdparty
