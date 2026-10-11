@@ -3,6 +3,7 @@
 #include "PartyUI.hpp"
 #include "../core/PartyManager.hpp"
 
+#include <algorithm>
 #include <array>
 
 using namespace geode::prelude;
@@ -40,17 +41,19 @@ DifficultyFilter cycleDifficulty(DifficultyFilter current, int direction) {
     return DifficultyValues[static_cast<std::size_t>(index)];
 }
 
-CCScale9Sprite* addListPanel(CCNode* parent, CCPoint position, CCSize size) {
-    auto panel = CCScale9Sprite::create("GJ_square01.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
+CCScale9Sprite* makePanel(CCNode* parent, CCPoint position, CCSize size, GLubyte opacity = 255) {
+    auto panel = CCScale9Sprite::create("square02_001.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
     panel->setContentSize(size);
     panel->setPosition(position);
+    panel->setOpacity(opacity);
+    panel->setColor({51, 68, 153});
     parent->addChild(panel);
     return panel;
 }
 
-void addRowLabel(CCNode* parent, char const* text, float y) {
-    auto label = partyui::addLabel(parent, text, "bigFont.fnt", 0.35f, {28.0f, y});
-    label->limitLabelWidth(170.0f, 0.35f, 0.26f);
+void addRowLabel(CCNode* parent, char const* text, float x, float y, float width) {
+    auto label = partyui::addLabel(parent, text, "bigFont.fnt", 0.32f, {x, y});
+    label->limitLabelWidth(width, 0.32f, 0.23f);
 }
 
 } // namespace
@@ -67,54 +70,62 @@ PartySettingsPopup* PartySettingsPopup::create() {
 }
 
 bool PartySettingsPopup::init() {
-    if (!initBase({0, 102, 255})) {
+    if (!initBase({37, 50, 167})) {
         return false;
     }
 
     auto windowSize = CCDirector::sharedDirector()->getWinSize();
     auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
-    auto shellSize = CCSize{382.0f, 244.0f};
-
-    auto title = partyui::addLabel(
-        this,
-        "PARTY SETTINGS",
-        "goldFont.fnt",
-        0.72f,
-        {center.x, windowSize.height - 25.0f},
-        {0.5f, 0.5f}
-    );
-    title->setZOrder(10);
+    auto shellSize = CCSize{
+        std::clamp(windowSize.width * 0.75f, 360.0f, 420.0f),
+        290.0f
+    };
+    auto innerWidth = shellSize.width * 0.8f;
+    auto innerLeft = (shellSize.width - innerWidth) / 2.0f;
+    auto innerRight = innerLeft + innerWidth;
 
     m_shell = CCNode::create();
     m_shell->setContentSize(shellSize);
     m_shell->setAnchorPoint({0.5f, 0.5f});
-    m_shell->setPosition({center.x, center.y - 4.0f});
+    m_shell->setPosition(center);
     addChild(m_shell, 2);
 
-    addListPanel(
-        m_shell,
-        {shellSize.width / 2.0f, shellSize.height / 2.0f},
-        shellSize
-    )->setZOrder(-4);
+    auto outer = CCScale9Sprite::create("GJ_square02.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
+    outer->setContentSize(shellSize);
+    outer->setPosition({shellSize.width / 2.0f, shellSize.height / 2.0f});
+    m_shell->addChild(outer, -5);
 
-    auto tabBackground = ButtonSprite::create("MATCH", 92, true, "bigFont.fnt", "GJ_button_01.png", 28.0f, 0.52f);
-    tabBackground->setPosition({73.0f, shellSize.height + 13.0f});
-    m_shell->addChild(tabBackground, 5);
+    partyui::addLabel(
+        m_shell,
+        "PARTY SETTINGS",
+        "goldFont.fnt",
+        0.67f,
+        {shellSize.width / 2.0f, shellSize.height - 18.0f},
+        {0.5f, 0.5f}
+    );
 
     auto sectionTitle = partyui::addLabel(
         m_shell,
-        "Match Rules",
-        "goldFont.fnt",
-        0.39f,
-        {shellSize.width / 2.0f, shellSize.height - 17.0f},
+        "MATCH RULES",
+        "chatFont.fnt",
+        0.32f,
+        {shellSize.width / 2.0f, shellSize.height - 40.0f},
         {0.5f, 0.5f}
     );
-    sectionTitle->setOpacity(235);
+    sectionTitle->setOpacity(170);
 
-    constexpr std::array<float, 5> Rows = {190.0f, 151.0f, 112.0f, 73.0f, 34.0f};
+    auto panelSize = CCSize{innerWidth, 212.0f};
+    makePanel(
+        m_shell,
+        {shellSize.width / 2.0f, 128.0f},
+        panelSize,
+        225
+    );
+
+    constexpr std::array<float, 5> Rows = {212.0f, 172.0f, 132.0f, 92.0f, 52.0f};
     for (std::size_t index = 0; index + 1 < Rows.size(); ++index) {
-        auto divider = CCLayerColor::create(ccc4(80, 35, 15, 110), shellSize.width - 22.0f, 1.0f);
-        divider->setPosition({11.0f, Rows[index] - 19.5f});
+        auto divider = CCLayerColor::create(ccc4(255, 255, 255, 24), innerWidth - 10.0f, 1.0f);
+        divider->setPosition({innerLeft + 5.0f, Rows[index] - 20.0f});
         m_shell->addChild(divider, 2);
     }
 
@@ -122,62 +133,68 @@ bool PartySettingsPopup::init() {
     buttonMenu->setPosition({0.0f, 0.0f});
     m_shell->addChild(buttonMenu, 10);
 
-    addRowLabel(m_shell, "Mode", Rows[0]);
+    auto labelX = innerLeft + 14.0f;
+    auto labelWidth = innerWidth * 0.45f;
+    auto controlCenterX = innerRight - 72.0f;
+    auto leftControlX = innerRight - 130.0f;
+    auto rightControlX = innerRight - 14.0f;
+
+    addRowLabel(m_shell, "Mode", labelX, Rows[0], labelWidth);
     m_modeValue = partyui::addLabel(
         m_shell,
         "Roulette Race",
         "goldFont.fnt",
-        0.37f,
-        {292.0f, Rows[0]},
+        0.34f,
+        {controlCenterX, Rows[0]},
         {0.5f, 0.5f}
     );
-    m_modeValue->limitLabelWidth(104.0f, 0.37f, 0.27f);
-    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onModePrevious), false, {230.0f, Rows[0]});
-    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onModeNext), true, {354.0f, Rows[0]});
+    m_modeValue->limitLabelWidth(104.0f, 0.34f, 0.24f);
+    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onModePrevious), false, {leftControlX, Rows[0]});
+    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onModeNext), true, {rightControlX, Rows[0]});
 
-    addRowLabel(m_shell, "Goal", Rows[1]);
+    addRowLabel(m_shell, "Goal", labelX, Rows[1], labelWidth);
     m_goalValue = partyui::addLabel(
         m_shell,
         "50%",
         "goldFont.fnt",
-        0.40f,
-        {292.0f, Rows[1]},
+        0.38f,
+        {controlCenterX, Rows[1]},
         {0.5f, 0.5f}
     );
-    partyui::addTextButton(buttonMenu, this, menu_selector(PartySettingsPopup::onGoalDown), "-", {247.0f, Rows[1]}, 31.0f, "GJ_button_05.png", 0.68f);
-    partyui::addTextButton(buttonMenu, this, menu_selector(PartySettingsPopup::onGoalUp), "+", {337.0f, Rows[1]}, 31.0f, "GJ_button_05.png", 0.63f);
+    partyui::addTextButton(buttonMenu, this, menu_selector(PartySettingsPopup::onGoalDown), "-", {leftControlX + 13.0f, Rows[1]}, 31.0f, "GJ_button_05.png", 0.68f);
+    partyui::addTextButton(buttonMenu, this, menu_selector(PartySettingsPopup::onGoalUp), "+", {rightControlX - 13.0f, Rows[1]}, 31.0f, "GJ_button_05.png", 0.63f);
 
-    addRowLabel(m_shell, "Difficulty", Rows[2]);
+    addRowLabel(m_shell, "Difficulty", labelX, Rows[2], labelWidth);
     m_difficultyIconNode = CCNode::create();
-    m_difficultyIconNode->setPosition({258.0f, Rows[2]});
+    m_difficultyIconNode->setPosition({controlCenterX - 39.0f, Rows[2]});
     m_shell->addChild(m_difficultyIconNode, 5);
 
     m_difficultyValue = partyui::addLabel(
         m_shell,
         "Random",
         "bigFont.fnt",
-        0.30f,
-        {300.0f, Rows[2]},
+        0.28f,
+        {controlCenterX + 13.0f, Rows[2]},
         {0.5f, 0.5f}
     );
-    m_difficultyValue->limitLabelWidth(93.0f, 0.30f, 0.22f);
-    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onDifficultyPrevious), false, {213.0f, Rows[2]});
-    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onDifficultyNext), true, {354.0f, Rows[2]});
+    m_difficultyValue->limitLabelWidth(94.0f, 0.28f, 0.20f);
+    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onDifficultyPrevious), false, {leftControlX, Rows[2]});
+    partyui::addArrowButton(buttonMenu, this, menu_selector(PartySettingsPopup::onDifficultyNext), true, {rightControlX, Rows[2]});
 
     m_fourthRowLabel = partyui::addLabel(
         m_shell,
         "Count extra progress",
         "bigFont.fnt",
-        0.33f,
-        {28.0f, Rows[3]}
+        0.30f,
+        {labelX, Rows[3]}
     );
-    m_fourthRowLabel->limitLabelWidth(185.0f, 0.33f, 0.24f);
+    m_fourthRowLabel->limitLabelWidth(labelWidth + 22.0f, 0.30f, 0.21f);
 
     m_overrunToggle = partyui::addToggle(
         buttonMenu,
         this,
         menu_selector(PartySettingsPopup::onToggleOverrun),
-        {342.0f, Rows[3]},
+        {innerRight - 24.0f, Rows[3]},
         0.62f
     );
 
@@ -185,8 +202,8 @@ bool PartySettingsPopup::init() {
         m_shell,
         "1",
         "goldFont.fnt",
-        0.40f,
-        {292.0f, Rows[3]},
+        0.38f,
+        {controlCenterX, Rows[3]},
         {0.5f, 0.5f}
     );
     m_attemptsDownButton = partyui::addTextButton(
@@ -194,7 +211,7 @@ bool PartySettingsPopup::init() {
         this,
         menu_selector(PartySettingsPopup::onAttemptsDown),
         "-",
-        {247.0f, Rows[3]},
+        {leftControlX + 13.0f, Rows[3]},
         31.0f,
         "GJ_button_05.png",
         0.68f
@@ -204,18 +221,18 @@ bool PartySettingsPopup::init() {
         this,
         menu_selector(PartySettingsPopup::onAttemptsUp),
         "+",
-        {337.0f, Rows[3]},
+        {rightControlX - 13.0f, Rows[3]},
         31.0f,
         "GJ_button_05.png",
         0.63f
     );
 
-    addRowLabel(m_shell, "Practice mode", Rows[4]);
+    addRowLabel(m_shell, "Practice mode", labelX, Rows[4], labelWidth);
     m_practiceToggle = partyui::addToggle(
         buttonMenu,
         this,
         menu_selector(PartySettingsPopup::onTogglePractice),
-        {342.0f, Rows[4]},
+        {innerRight - 24.0f, Rows[4]},
         0.62f
     );
 
@@ -236,9 +253,9 @@ void PartySettingsPopup::refresh() {
     m_goalValue->setString(fmt::format("{}%", settings.targetProgress).c_str());
 
     m_difficultyValue->setString(partyui::difficultyName(settings.difficulty));
-    m_difficultyValue->limitLabelWidth(93.0f, 0.30f, 0.21f);
+    m_difficultyValue->limitLabelWidth(94.0f, 0.28f, 0.20f);
     m_difficultyIconNode->removeAllChildren();
-    if (auto icon = partyui::makeDifficultyIcon(settings.difficulty, 0.22f)) {
+    if (auto icon = partyui::makeDifficultyIcon(settings.difficulty, 0.20f)) {
         icon->setPosition({0.0f, 0.0f});
         m_difficultyIconNode->addChild(icon);
     }
