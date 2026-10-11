@@ -6,8 +6,7 @@
 namespace gdparty {
 namespace {
 
-// Temporary V0.1 pool used to exercise the complete multiplayer loop while
-// the dynamic GD level-query provider is built. These are public online levels.
+// Temporary V0.1 pool used while the dynamic filtered level provider is built.
 constexpr std::array<int, 12> DevelopmentLevelPool = {
     13519,
     55520,
@@ -59,17 +58,9 @@ void RouletteRace::onPlayerProgress(PartyState& partyState, int accountId, int p
     }
 
     player->progress = std::max(player->progress, progress);
-    if (player->progress < player->rouletteTarget) {
-        return;
+    if (player->progress >= player->rouletteTarget) {
+        player->roundSecured = true;
     }
-
-    if (!advancePlayer(*player, partyState.settings)) {
-        return;
-    }
-
-    player->finished = true;
-    partyState.winnerAccountId = player->accountId;
-    partyState.phase = PartyPhase::Results;
 }
 
 int RouletteRace::levelForTarget(std::uint64_t seed, int target) {
@@ -79,18 +70,36 @@ int RouletteRace::levelForTarget(std::uint64_t seed, int target) {
 
 void RouletteRace::initializePlayer(PartyPlayer& player, std::uint64_t seed) {
     player.finished = false;
+    player.roundSecured = false;
     player.progress = 0;
     player.rouletteTarget = 1;
     player.currentLevelId = levelForTarget(seed, player.rouletteTarget);
+    player.attemptCount = 0;
 }
 
 bool RouletteRace::advancePlayer(PartyPlayer& player, MatchSettings const& settings) {
-    if (player.rouletteTarget >= settings.targetProgress) {
+    if (!player.roundSecured) {
+        return false;
+    }
+
+    auto achieved = std::clamp(player.progress, 0, 100);
+    auto reachedGoal = settings.overrunCounts
+        ? achieved >= settings.targetProgress
+        : player.rouletteTarget >= settings.targetProgress;
+
+    if (reachedGoal) {
         return true;
     }
 
-    ++player.rouletteTarget;
+    auto nextTarget = player.rouletteTarget + 1;
+    if (settings.overrunCounts) {
+        nextTarget = std::max(nextTarget, achieved + 1);
+    }
+
+    player.rouletteTarget = std::clamp(nextTarget, 1, settings.targetProgress);
     player.progress = 0;
+    player.roundSecured = false;
+    player.attemptCount = 0;
     player.currentLevelId = levelForTarget(settings.seed, player.rouletteTarget);
     return false;
 }
