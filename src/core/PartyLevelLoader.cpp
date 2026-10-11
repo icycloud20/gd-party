@@ -12,6 +12,14 @@ PartyLevelLoader& PartyLevelLoader::get() {
 }
 
 void PartyLevelLoader::openAssignedLevel() {
+    openAssignedLevelInternal(false);
+}
+
+void PartyLevelLoader::openAssignedLevelFromDecision() {
+    openAssignedLevelInternal(true);
+}
+
+void PartyLevelLoader::openAssignedLevelInternal(bool allowGameplayTransition) {
     auto const& manager = PartyManager::get();
     if (manager.state().phase != PartyPhase::Playing) {
         return;
@@ -19,6 +27,11 @@ void PartyLevelLoader::openAssignedLevel() {
 
     auto player = manager.localPlayer();
     if (!player || player->finished || player->currentLevelId <= 0) {
+        return;
+    }
+
+    if (!allowGameplayTransition && isDifferentLevelPlaying(player->currentLevelId)) {
+        log::debug("GD Party deferred automatic level transition until the player confirms");
         return;
     }
 
@@ -155,6 +168,23 @@ bool PartyLevelLoader::isAlreadyShowing(int levelId) const {
     }
 
     return false;
+}
+
+bool PartyLevelLoader::isDifferentLevelPlaying(int levelId) const {
+    auto director = CCDirector::sharedDirector();
+    if (!director) {
+        return false;
+    }
+
+    auto scene = director->getRunningScene();
+    if (!scene) {
+        return false;
+    }
+
+    auto playLayer = scene->getChildByType<PlayLayer>(0);
+    return playLayer &&
+        playLayer->m_level &&
+        playLayer->m_level->m_levelID.value() != levelId;
 }
 
 void PartyLevelLoader::clearRequest() {
