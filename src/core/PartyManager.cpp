@@ -14,6 +14,47 @@ using namespace geode::prelude;
 namespace gdparty {
 namespace {
 
+struct LocalAppearance {
+    int cubeIcon = 1;
+    int color1 = 0;
+    int color2 = 3;
+    bool glow = false;
+    int glowColor = 0;
+};
+
+LocalAppearance getLocalAppearance() {
+    LocalAppearance appearance;
+    auto gameManager = GameManager::sharedState();
+    if (!gameManager) {
+        return appearance;
+    }
+
+    appearance.cubeIcon = gameManager->getPlayerFrame();
+    appearance.color1 = gameManager->getPlayerColor();
+    appearance.color2 = gameManager->getPlayerColor2();
+    appearance.glow = gameManager->getPlayerGlow();
+    appearance.glowColor = gameManager->getPlayerGlowColor();
+    return appearance;
+}
+
+std::uint64_t packAppearance(LocalAppearance const& appearance) {
+    auto color2 = static_cast<std::uint64_t>(static_cast<std::uint32_t>(appearance.color2));
+    auto glowColor = static_cast<std::uint64_t>(static_cast<std::uint32_t>(appearance.glowColor));
+    return (color2 & 0xffffULL) |
+        ((glowColor & 0xffffULL) << 16) |
+        (appearance.glow ? (1ULL << 32) : 0ULL);
+}
+
+LocalAppearance unpackAppearance(int cubeIcon, int color1, std::uint64_t packed) {
+    LocalAppearance appearance;
+    appearance.cubeIcon = cubeIcon;
+    appearance.color1 = color1;
+    appearance.color2 = static_cast<int>(packed & 0xffffULL);
+    appearance.glowColor = static_cast<int>((packed >> 16) & 0xffffULL);
+    appearance.glow = ((packed >> 32) & 1ULL) != 0;
+    return appearance;
+}
+
 void queueAssignedLevelOpen() {
     Loader::get()->queueInMainThread([] {
         PartyLevelLoader::get().openAssignedLevel();
@@ -76,7 +117,18 @@ bool PartyManager::createParty() {
     m_state.active = true;
     m_state.phase = PartyPhase::Lobby;
     m_state.hostAccountId = m_transport->localAccountId();
-    addOrUpdatePlayer(m_transport->localAccountId(), m_transport->localUsername());
+
+    auto appearance = getLocalAppearance();
+    addOrUpdatePlayer(
+        m_transport->localAccountId(),
+        m_transport->localUsername(),
+        appearance.cubeIcon,
+        appearance.color1,
+        appearance.color2,
+        appearance.glow,
+        appearance.glowColor
+    );
+
     broadcastSnapshot();
     return true;
 }
@@ -95,8 +147,12 @@ bool PartyManager::joinParty() {
         return false;
     }
 
+    auto appearance = getLocalAppearance();
     auto message = baseMessage(PartyMessageType::JoinRequest);
     message.text = m_transport->localUsername();
+    message.valueA = appearance.cubeIcon;
+    message.valueB = appearance.color1;
+    message.valueC = packAppearance(appearance);
     m_transport->sendReliableTo(message, m_transport->roomOwnerAccountId());
     return true;
 }
@@ -141,12 +197,66 @@ void PartyManager::setReady(bool ready) {
     m_transport->sendReliableTo(message, m_state.hostAccountId);
 }
 
+void PartyManager::setGameMode(GameModeType gameMode) {
+    if (!isHost() || m_state.phase != PartyPhase::Lobby) {
+        return;
+    }
+
+    m_state.settings.gameMode = gameMode;
+    broadcastSnapshot();
+}
+
 void PartyManager::setTargetProgress(int targetProgress) {
     if (!isHost() || m_state.phase != PartyPhase::Lobby) {
         return;
     }
 
     m_state.settings.targetProgress = std::clamp(targetProgress, 1, 100);
+    broadcastSnapshot();
+}
+
+void PartyManager::setDifficulty(DifficultyFilter difficulty) {
+    if (!isHost() || m_state.phase != PartyPhase::Lobby) {
+        return;
+    }
+
+    m_state.settings.difficulty = difficulty;
+    broadcastSnapshot();
+}
+
+void PartyManager::setOverrunCounts(bool enabled) {
+    if (!isHost() || m_state.phase != PartyPhase::Lobby) {
+        return;
+    }
+
+    m_state.settings.overrunCounts = enabled;
+    broadcastSnapshot();
+}
+
+void PartyManager::setPracticeModeEnabled(bool enabled) {
+    if (!isHost() || m_state.phase != PartyPhase::Lobby) {
+        return;
+    }
+
+    m_state.settings.practiceModeEnabled = enabled;
+    broadcastSnapshot();
+}
+
+void PartyManager::setMaxAttempts(int maxAttempts) {
+    if (!isHost() || m_state.phase != PartyPhase::Lobby) {
+        return;
+    }
+
+    m_state.settings.maxAttempts = std::clamp(maxAttempts, 1, 1000);
+    broadcastSnapshot();
+}
+
+void PartyManager::setRecentPoolSize(int recentPoolSize) {
+    if (!isHost() || m_state.phase != PartyPhase::Lobby) {
+        return;
+    }
+
+    m_state.settings.recentPoolSize = std::clamp(recentPoolSize, 10, 500);
     broadcastSnapshot();
 }
 
@@ -164,10 +274,16 @@ bool PartyManager::startMatch() {
         return false;
     }
 
+    if (m_state.settings.gameMode != GameModeType::RouletteRace) {
+        Notification::create("That mode is not playable yet", NotificationIcon::Warning)->show();
+        return false;
+    }
+
     auto now = std::chrono::steady_clock::now().time_since_epoch().count();
     m_state.settings.seed = static_cast<std::uint64_t>(now) ^ static_cast<std::uint64_t>(m_state.roomId);
     m_state.winnerAccountId = 0;
     m_lastReportedTarget = 0;
+    m_pendingRoundAdvanceOpen = false;
 
     RouletteRace rouletteRace;
     rouletteRace.begin(m_state);
@@ -192,18 +308,69 @@ void PartyManager::reportLocalProgress(int progress, int levelId) {
 
     m_lastReportedTarget = player->rouletteTarget;
 
-    if (isHost()) {
-        PartyMessage message = baseMessage(PartyMessageType::ReachedTarget);
-        message.valueA = player->rouletteTarget;
-        message.valueB = levelId;
-        handleHostMessage(message);
-        return;
-    }
-
     auto message = baseMessage(PartyMessageType::ReachedTarget);
     message.valueA = player->rouletteTarget;
     message.valueB = levelId;
-    m_transport->sendReliableTo(message, m_state.hostAccountId);
+    message.valueC = static_cast<std::uint64_t>(std::clamp(progress, 0, 100));
+
+    if (isHost()) {
+        handleHostMessage(message);
+    } else {
+        m_transport->sendReliableTo(message, m_state.hostAccountId);
+    }
+}
+
+void PartyManager::reportAttemptEnded(int progress, int levelId) {
+    if (!canUseParty() || !m_state.active || m_state.phase != PartyPhase::Playing) {
+        return;
+    }
+
+    auto player = localPlayer();
+    if (!player || player->finished || player->currentLevelId != levelId) {
+        return;
+    }
+
+    auto message = baseMessage(PartyMessageType::AttemptEnded);
+    message.valueA = std::clamp(progress, 0, 100);
+    message.valueB = levelId;
+    message.valueC = static_cast<std::uint64_t>(player->rouletteTarget);
+
+    if (isHost()) {
+        handleHostMessage(message);
+    } else {
+        m_transport->sendReliableTo(message, m_state.hostAccountId);
+    }
+}
+
+bool PartyManager::requestAdvanceRound(int achievedProgress) {
+    if (!canUseParty() || !m_state.active || m_state.phase != PartyPhase::Playing) {
+        return false;
+    }
+
+    auto player = localPlayer();
+    if (!player || player->finished || player->currentLevelId <= 0) {
+        return false;
+    }
+
+    achievedProgress = std::clamp(achievedProgress, 0, 100);
+    if (achievedProgress < player->rouletteTarget && !player->roundSecured) {
+        return false;
+    }
+
+    m_pendingRoundAdvanceOpen = true;
+
+    auto message = baseMessage(PartyMessageType::AdvanceRound);
+    message.valueA = player->rouletteTarget;
+    message.valueB = player->currentLevelId;
+    message.valueC = static_cast<std::uint64_t>(achievedProgress);
+
+    if (isHost()) {
+        handleHostMessage(message);
+    } else {
+        m_transport->sendReliableTo(message, m_state.hostAccountId);
+    }
+
+    return true;
 }
 
 PartyPlayer const* PartyManager::localPlayer() const {
@@ -225,6 +392,7 @@ PartyPlayer const* PartyManager::findPlayer(int accountId) const {
 void PartyManager::resetForCurrentRoom() {
     m_state = {};
     m_lastReportedTarget = 0;
+    m_pendingRoundAdvanceOpen = false;
 
     if (!m_transport) {
         return;
@@ -266,13 +434,24 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
             }
             break;
 
-        case PartyMessageType::JoinRequest:
+        case PartyMessageType::JoinRequest: {
             if (!m_state.active) {
                 return;
             }
-            addOrUpdatePlayer(message.senderAccountId, message.text);
+
+            auto appearance = unpackAppearance(message.valueA, message.valueB, message.valueC);
+            addOrUpdatePlayer(
+                message.senderAccountId,
+                message.text,
+                appearance.cubeIcon,
+                appearance.color1,
+                appearance.color2,
+                appearance.glow,
+                appearance.glowColor
+            );
             broadcastSnapshot();
             break;
+        }
 
         case PartyMessageType::PlayerReady:
             if (auto player = findMutablePlayer(message.senderAccountId)) {
@@ -293,7 +472,51 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
                 return;
             }
 
-            player->progress = std::max(player->progress, player->rouletteTarget);
+            player->progress = std::max(
+                player->progress,
+                std::clamp(static_cast<int>(message.valueC), 0, 100)
+            );
+            player->roundSecured = player->progress >= player->rouletteTarget;
+            broadcastSnapshot();
+            break;
+        }
+
+        case PartyMessageType::AttemptEnded: {
+            if (m_state.phase != PartyPhase::Playing) {
+                return;
+            }
+
+            auto player = findMutablePlayer(message.senderAccountId);
+            if (!player || player->finished || player->currentLevelId != message.valueB) {
+                return;
+            }
+
+            player->progress = std::max(player->progress, std::clamp(message.valueA, 0, 100));
+            player->roundSecured = player->progress >= player->rouletteTarget;
+            ++player->attemptCount;
+            broadcastSnapshot();
+            break;
+        }
+
+        case PartyMessageType::AdvanceRound: {
+            if (m_state.phase != PartyPhase::Playing) {
+                return;
+            }
+
+            auto player = findMutablePlayer(message.senderAccountId);
+            if (!player || player->finished ||
+                player->rouletteTarget != message.valueA ||
+                player->currentLevelId != message.valueB) {
+                return;
+            }
+
+            auto achievedProgress = std::clamp(static_cast<int>(message.valueC), 0, 100);
+            player->progress = std::max(player->progress, achievedProgress);
+            player->roundSecured = player->progress >= player->rouletteTarget;
+            if (!player->roundSecured) {
+                return;
+            }
+
             auto won = RouletteRace::advancePlayer(*player, m_state.settings);
             if (won) {
                 player->finished = true;
@@ -302,7 +525,13 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
             }
 
             broadcastSnapshot();
-            queueAssignedLevelOpen();
+
+            if (message.senderAccountId == m_transport->localAccountId()) {
+                m_pendingRoundAdvanceOpen = false;
+                if (!won) {
+                    queueAssignedLevelOpen();
+                }
+            }
             break;
         }
 
@@ -346,6 +575,11 @@ void PartyManager::applySnapshot(PartyMessage const& message) {
         return;
     }
 
+    auto oldPhase = m_state.phase;
+    auto oldLocalPlayer = localPlayer();
+    auto oldLevelId = oldLocalPlayer ? oldLocalPlayer->currentLevelId : 0;
+    auto oldTarget = oldLocalPlayer ? oldLocalPlayer->rouletteTarget : 0;
+
     snapshot.localAccountId = m_transport->localAccountId();
     m_state = std::move(snapshot);
 
@@ -354,10 +588,35 @@ void PartyManager::applySnapshot(PartyMessage const& message) {
         m_lastReportedTarget = 0;
     }
 
-    queueAssignedLevelOpen();
+    if (!player) {
+        return;
+    }
+
+    auto startedMatch = oldPhase != PartyPhase::Playing && m_state.phase == PartyPhase::Playing;
+    auto advancedRound = m_pendingRoundAdvanceOpen &&
+        m_state.phase == PartyPhase::Playing &&
+        player->currentLevelId > 0 &&
+        (player->currentLevelId != oldLevelId || player->rouletteTarget != oldTarget);
+
+    if (startedMatch || advancedRound) {
+        m_pendingRoundAdvanceOpen = false;
+        queueAssignedLevelOpen();
+    }
+
+    if (m_state.phase == PartyPhase::Results) {
+        m_pendingRoundAdvanceOpen = false;
+    }
 }
 
-void PartyManager::addOrUpdatePlayer(int accountId, std::string const& name) {
+void PartyManager::addOrUpdatePlayer(
+    int accountId,
+    std::string const& name,
+    int cubeIcon,
+    int color1,
+    int color2,
+    bool glow,
+    int glowColor
+) {
     if (accountId <= 0) {
         return;
     }
@@ -366,12 +625,22 @@ void PartyManager::addOrUpdatePlayer(int accountId, std::string const& name) {
         if (!name.empty()) {
             existing->name = name;
         }
+        existing->cubeIcon = std::max(1, cubeIcon);
+        existing->color1 = color1;
+        existing->color2 = color2;
+        existing->glow = glow;
+        existing->glowColor = glowColor;
         return;
     }
 
     PartyPlayer player;
     player.accountId = accountId;
     player.name = name.empty() ? "Player" : name;
+    player.cubeIcon = std::max(1, cubeIcon);
+    player.color1 = color1;
+    player.color2 = color2;
+    player.glow = glow;
+    player.glowColor = glowColor;
     m_state.players.push_back(std::move(player));
 }
 
