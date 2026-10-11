@@ -1,5 +1,6 @@
 #include "PartyManager.hpp"
 
+#include "PartyLevelLoader.hpp"
 #include "PartyStateCodec.hpp"
 #include "../gamemodes/RouletteRace.hpp"
 
@@ -11,6 +12,15 @@
 using namespace geode::prelude;
 
 namespace gdparty {
+namespace {
+
+void queueAssignedLevelOpen() {
+    Loader::get()->queueInMainThread([] {
+        PartyLevelLoader::get().openAssignedLevel();
+    });
+}
+
+} // namespace
 
 PartyManager& PartyManager::get() {
     static PartyManager instance;
@@ -162,6 +172,7 @@ bool PartyManager::startMatch() {
     RouletteRace rouletteRace;
     rouletteRace.begin(m_state);
     broadcastSnapshot();
+    queueAssignedLevelOpen();
     return true;
 }
 
@@ -291,6 +302,7 @@ void PartyManager::handleHostMessage(PartyMessage const& message) {
             }
 
             broadcastSnapshot();
+            queueAssignedLevelOpen();
             break;
         }
 
@@ -341,6 +353,8 @@ void PartyManager::applySnapshot(PartyMessage const& message) {
     if (!player || player->rouletteTarget != m_lastReportedTarget) {
         m_lastReportedTarget = 0;
     }
+
+    queueAssignedLevelOpen();
 }
 
 void PartyManager::addOrUpdatePlayer(int accountId, std::string const& name) {
