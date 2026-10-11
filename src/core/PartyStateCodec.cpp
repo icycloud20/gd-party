@@ -7,7 +7,7 @@
 namespace gdparty {
 namespace {
 
-constexpr std::uint8_t SnapshotVersion = 1;
+constexpr std::uint8_t SnapshotVersion = 2;
 
 template <typename Integer>
 void writeInteger(std::vector<std::uint8_t>& output, Integer value) {
@@ -58,7 +58,7 @@ bool readString(std::span<const std::uint8_t> bytes, std::size_t& offset, std::s
 
 std::vector<std::uint8_t> encodePartyState(PartyState const& state) {
     std::vector<std::uint8_t> output;
-    output.reserve(64 + state.players.size() * 32);
+    output.reserve(96 + state.players.size() * 48);
 
     output.push_back(SnapshotVersion);
     output.push_back(static_cast<std::uint8_t>(state.phase));
@@ -69,6 +69,11 @@ std::vector<std::uint8_t> encodePartyState(PartyState const& state) {
     writeInteger(output, state.hostAccountId);
     writeInteger(output, state.winnerAccountId);
     writeInteger(output, state.settings.targetProgress);
+    writeInteger(output, state.settings.maxAttempts);
+    writeInteger(output, state.settings.recentPoolSize);
+    output.push_back(static_cast<std::uint8_t>(state.settings.difficulty));
+    output.push_back(state.settings.overrunCounts ? 1 : 0);
+    output.push_back(state.settings.practiceModeEnabled ? 1 : 0);
     writeInteger(output, state.settings.seed);
 
     auto playerCount = static_cast<std::uint16_t>(std::min<std::size_t>(state.players.size(), std::numeric_limits<std::uint16_t>::max()));
@@ -79,9 +84,16 @@ std::vector<std::uint8_t> encodePartyState(PartyState const& state) {
         writeInteger(output, player.accountId);
         output.push_back(player.ready ? 1 : 0);
         output.push_back(player.finished ? 1 : 0);
+        output.push_back(player.roundSecured ? 1 : 0);
         writeInteger(output, player.progress);
         writeInteger(output, player.rouletteTarget);
         writeInteger(output, player.currentLevelId);
+        writeInteger(output, player.attemptCount);
+        writeInteger(output, player.cubeIcon);
+        writeInteger(output, player.color1);
+        writeInteger(output, player.color2);
+        output.push_back(player.glow ? 1 : 0);
+        writeInteger(output, player.glowColor);
         writeString(output, player.name);
     }
 
@@ -103,7 +115,17 @@ bool decodePartyState(std::span<const std::uint8_t> bytes, PartyState& state) {
         !readInteger(bytes, offset, decoded.hostAccountId) ||
         !readInteger(bytes, offset, decoded.winnerAccountId) ||
         !readInteger(bytes, offset, decoded.settings.targetProgress) ||
-        !readInteger(bytes, offset, decoded.settings.seed)) {
+        !readInteger(bytes, offset, decoded.settings.maxAttempts) ||
+        !readInteger(bytes, offset, decoded.settings.recentPoolSize) ||
+        offset + 3 > bytes.size()) {
+        return false;
+    }
+
+    decoded.settings.difficulty = static_cast<DifficultyFilter>(bytes[offset++]);
+    decoded.settings.overrunCounts = bytes[offset++] != 0;
+    decoded.settings.practiceModeEnabled = bytes[offset++] != 0;
+
+    if (!readInteger(bytes, offset, decoded.settings.seed)) {
         return false;
     }
 
@@ -115,16 +137,28 @@ bool decodePartyState(std::span<const std::uint8_t> bytes, PartyState& state) {
     decoded.players.reserve(playerCount);
     for (std::uint16_t index = 0; index < playerCount; ++index) {
         PartyPlayer player;
-        if (!readInteger(bytes, offset, player.accountId) || offset + 2 > bytes.size()) {
+        if (!readInteger(bytes, offset, player.accountId) || offset + 3 > bytes.size()) {
             return false;
         }
 
         player.ready = bytes[offset++] != 0;
         player.finished = bytes[offset++] != 0;
+        player.roundSecured = bytes[offset++] != 0;
 
         if (!readInteger(bytes, offset, player.progress) ||
             !readInteger(bytes, offset, player.rouletteTarget) ||
             !readInteger(bytes, offset, player.currentLevelId) ||
+            !readInteger(bytes, offset, player.attemptCount) ||
+            !readInteger(bytes, offset, player.cubeIcon) ||
+            !readInteger(bytes, offset, player.color1) ||
+            !readInteger(bytes, offset, player.color2) ||
+            offset + 1 > bytes.size()) {
+            return false;
+        }
+
+        player.glow = bytes[offset++] != 0;
+
+        if (!readInteger(bytes, offset, player.glowColor) ||
             !readString(bytes, offset, player.name)) {
             return false;
         }
