@@ -9,6 +9,7 @@ public:
     static PartyLevelLoader& get();
 
     void openAssignedLevel();
+    void openAssignedLevelFromDecision();
     void openLevel(int levelId);
     bool isLoading() const;
     int requestedLevelId() const;
@@ -19,8 +20,10 @@ public:
 private:
     PartyLevelLoader() = default;
 
+    void openAssignedLevelInternal(bool allowGameplayTransition);
     void showLevelPage(GJGameLevel* level);
     bool isAlreadyShowing(int levelId) const;
+    bool isDifferentLevelPlaying(int levelId) const;
     void clearRequest();
 
     bool m_loading = false;
