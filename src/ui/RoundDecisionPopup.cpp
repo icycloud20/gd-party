@@ -34,7 +34,7 @@ bool RoundDecisionPopup::init(RoundDecisionContext const& context) {
     PlatformToolbox::showCursor();
 
     auto windowSize = CCDirector::sharedDirector()->getWinSize();
-    auto center = windowSize / 2.0f;
+    auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
     auto cardSize = CCSize{392.0f, 178.0f};
 
     auto card = CCScale9Sprite::create("GJ_square02.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
