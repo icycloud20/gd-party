@@ -16,8 +16,8 @@ namespace gdparty {
 namespace {
 
 constexpr float ListHeight = 198.0f;
-constexpr float SummaryHeight = 40.0f;
-constexpr float PlayerRowHeight = 34.0f;
+constexpr float SummaryHeight = 46.0f;
+constexpr float PlayerRowHeight = 42.0f;
 
 char const* modeName(GameModeType mode) {
     return mode == GameModeType::RecentRush ? "Recent Rush" : "Roulette Race";
@@ -136,9 +136,9 @@ bool PartyPopup::init() {
         menu_selector(PartyPopup::onReady),
         "Ready",
         {centerX, 28.0f},
-        98.0f,
+        90.0f,
         "GJ_button_01.png",
-        0.68f
+        0.64f
     );
     m_unreadyButton = partyui::addTextButton(
         buttonMenu,
@@ -146,9 +146,9 @@ bool PartyPopup::init() {
         menu_selector(PartyPopup::onUnready),
         "Unready",
         {centerX, 28.0f},
-        98.0f,
+        90.0f,
         "GJ_button_06.png",
-        0.59f
+        0.55f
     );
     m_startButton = partyui::addTextButton(
         buttonMenu,
@@ -156,16 +156,16 @@ bool PartyPopup::init() {
         menu_selector(PartyPopup::onStart),
         "Start",
         {centerX, 28.0f},
-        98.0f,
+        90.0f,
         "GJ_button_01.png",
-        0.68f
+        0.64f
     );
 
     auto sideMenu = CCMenu::create();
     sideMenu->setPosition({0.0f, 0.0f});
     m_shell->addChild(sideMenu, 20);
 
-    constexpr float SideButtonSize = 30.0f;
+    constexpr float SideButtonSize = 31.0f;
     m_settingsButton = partyui::addIconButton(
         sideMenu,
         this,
@@ -193,15 +193,19 @@ bool PartyPopup::init() {
         {shellSize.width - 21.0f, 176.0f},
         SideButtonSize
     );
-    m_leaveButton = partyui::addIconButton(
-        sideMenu,
-        this,
-        menu_selector(PartyPopup::onLeaveParty),
-        "exit01.png",
-        "GJ_closeBtn_001.png",
-        {21.0f, 28.0f},
-        SideButtonSize
-    );
+
+    // Use the native high-resolution GD delete button instead of scaling the
+    // small Globed exit texture, which looked blurry when enlarged.
+    if (auto leaveSprite = CCSprite::createWithSpriteFrameName("GJ_deleteBtn_001.png")) {
+        leaveSprite->setScale(0.82f);
+        m_leaveButton = CCMenuItemSpriteExtra::create(
+            leaveSprite,
+            this,
+            menu_selector(PartyPopup::onLeaveParty)
+        );
+        m_leaveButton->setPosition({21.0f, 28.0f});
+        sideMenu->addChild(m_leaveButton);
+    }
 
     auto& manager = PartyManager::get();
     manager.refreshRoomContext();
@@ -256,12 +260,13 @@ void PartyPopup::refresh() {
         if (visible.size() == 1) {
             visible[0]->setPositionX(centerX);
         } else if (visible.size() == 2) {
-            visible[0]->setPositionX(centerX - 66.0f);
-            visible[1]->setPositionX(centerX + 66.0f);
+            // 120px between centers with 90px buttons leaves a clean 30px gap.
+            visible[0]->setPositionX(centerX - 60.0f);
+            visible[1]->setPositionX(centerX + 60.0f);
         } else if (visible.size() == 3) {
-            visible[0]->setPositionX(centerX - 108.0f);
+            visible[0]->setPositionX(centerX - 100.0f);
             visible[1]->setPositionX(centerX);
-            visible[2]->setPositionX(centerX + 108.0f);
+            visible[2]->setPositionX(centerX + 100.0f);
         }
     };
 
@@ -375,14 +380,14 @@ void PartyPopup::rebuildPlayerList() {
         summaryRow,
         modeName(settings.gameMode),
         "bigFont.fnt",
-        0.40f,
+        0.45f,
         {12.0f, SummaryHeight / 2.0f}
     );
-    modeLabel->limitLabelWidth(listSize.width * 0.38f, 0.40f, 0.29f);
+    modeLabel->limitLabelWidth(listSize.width * 0.39f, 0.45f, 0.33f);
 
-    auto difficultyX = listSize.width * 0.58f;
-    if (auto icon = partyui::makeDifficultyIcon(settings.difficulty, 0.44f)) {
-        icon->setPosition({difficultyX - 25.0f, SummaryHeight / 2.0f});
+    auto difficultyX = listSize.width * 0.61f;
+    if (auto icon = partyui::makeDifficultyIcon(settings.difficulty, 0.62f)) {
+        icon->setPosition({difficultyX - 34.0f, SummaryHeight / 2.0f});
         summaryRow->addChild(icon, 3);
     }
 
@@ -390,21 +395,21 @@ void PartyPopup::rebuildPlayerList() {
         summaryRow,
         partyui::difficultyName(settings.difficulty),
         "goldFont.fnt",
-        0.35f,
-        {difficultyX - 5.0f, SummaryHeight / 2.0f},
+        0.42f,
+        {difficultyX - 7.0f, SummaryHeight / 2.0f},
         {0.0f, 0.5f}
     );
-    difficultyLabel->limitLabelWidth(listSize.width * 0.24f, 0.35f, 0.25f);
+    difficultyLabel->limitLabelWidth(listSize.width * 0.24f, 0.42f, 0.30f);
 
     auto goalLabel = partyui::addLabel(
         summaryRow,
         fmt::format("{}%", settings.targetProgress),
         "goldFont.fnt",
-        0.46f,
+        0.54f,
         {listSize.width - 10.0f, SummaryHeight / 2.0f},
         {1.0f, 0.5f}
     );
-    goalLabel->limitLabelWidth(56.0f, 0.46f, 0.32f);
+    goalLabel->limitLabelWidth(62.0f, 0.54f, 0.38f);
 
     for (std::size_t index = 0; index < playerCount; ++index) {
         auto const& player = state.players[index];
@@ -419,8 +424,8 @@ void PartyPopup::rebuildPlayerList() {
         m_playerListLayer->addChild(row);
 
         auto icon = SimplePlayer::create(std::max(1, player.cubeIcon));
-        icon->setScale(0.46f);
-        icon->setPosition({22.0f, PlayerRowHeight / 2.0f});
+        icon->setScale(0.64f);
+        icon->setPosition({27.0f, PlayerRowHeight / 2.0f});
         if (gameManager) {
             icon->m_firstLayer->setColor(gameManager->colorForIdx(player.color1));
             icon->m_secondLayer->setColor(gameManager->colorForIdx(player.color2));
@@ -431,17 +436,17 @@ void PartyPopup::rebuildPlayerList() {
             row,
             player.name,
             "bigFont.fnt",
-            0.39f,
-            {45.0f, PlayerRowHeight / 2.0f}
+            0.44f,
+            {55.0f, PlayerRowHeight / 2.0f}
         );
-        nameLabel->limitLabelWidth(listSize.width * 0.42f, 0.39f, 0.28f);
+        nameLabel->limitLabelWidth(listSize.width * 0.41f, 0.44f, 0.32f);
 
         if (player.accountId == state.hostAccountId) {
-            auto crown = partyui::makeSizedSprite(partyui::loadGlobedSprite("icon-crown-small.png"), 19.0f);
+            auto crown = partyui::makeSizedSprite(partyui::loadGlobedSprite("icon-crown-small.png"), 21.0f);
             if (crown) {
                 auto nameWidth = nameLabel->getContentSize().width * nameLabel->getScale();
                 crown->setPosition({
-                    std::min(listSize.width * 0.58f, 45.0f + nameWidth + 12.0f),
+                    std::min(listSize.width * 0.59f, 55.0f + nameWidth + 13.0f),
                     PlayerRowHeight / 2.0f + 1.0f
                 });
                 row->addChild(crown, 4);
@@ -450,16 +455,16 @@ void PartyPopup::rebuildPlayerList() {
 
         std::string status;
         char const* font = "bigFont.fnt";
-        float statusScale = 0.32f;
+        float statusScale = 0.38f;
 
         if (state.phase == PartyPhase::Lobby) {
             status = player.ready ? "READY" : "WAITING";
             font = player.ready ? "goldFont.fnt" : "bigFont.fnt";
-            statusScale = 0.35f;
+            statusScale = 0.40f;
         } else if (player.finished) {
             status = "FINISHED";
             font = "goldFont.fnt";
-            statusScale = 0.32f;
+            statusScale = 0.36f;
         } else if (state.settings.gameMode == GameModeType::RecentRush) {
             status = fmt::format("{}%  L{}", player.progress, player.rouletteTarget);
         } else {
@@ -474,7 +479,7 @@ void PartyPopup::rebuildPlayerList() {
             {listSize.width - 10.0f, PlayerRowHeight / 2.0f},
             {1.0f, 0.5f}
         );
-        statusLabel->limitLabelWidth(listSize.width * 0.34f, statusScale, 0.23f);
+        statusLabel->limitLabelWidth(listSize.width * 0.34f, statusScale, 0.27f);
     }
 
     if (playerCountChanged) {
