@@ -33,7 +33,7 @@ bool PartyBaseLayer::initBase(ccColor3B backgroundColor) {
         m_backButton = CCMenuItemSpriteExtra::create(
             arrow,
             this,
-            menu_selector(PartyBaseLayer::keyBackClicked)
+            menu_selector(PartyBaseLayer::onBack)
         );
 
         m_backMenu = CCMenu::create();
@@ -55,9 +55,13 @@ void PartyBaseLayer::switchTo() {
     CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.18f, scene));
 }
 
+void PartyBaseLayer::onBack(CCObject*) {
+    keyBackClicked();
+}
+
 void PartyBaseLayer::keyBackClicked() {
     PlatformToolbox::showCursor();
-    CCDirector::sharedDirector()->popSceneWithTransition(0.18f, PopTransition::kPopTransitionFade);
+    CCDirector::sharedDirector()->popScene();
 }
 
 } // namespace gdparty
