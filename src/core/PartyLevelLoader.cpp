@@ -86,7 +86,15 @@ void PartyLevelLoader::levelDownloadFinished(GJGameLevel* level) {
     }
 
     log::info("GD Party finished downloading level {}", expectedLevelId);
-    showLevelPage(level);
+
+    auto levelToOpen = level;
+    if (auto levelManager = GameLevelManager::sharedState()) {
+        if (auto savedLevel = levelManager->getSavedLevel(expectedLevelId)) {
+            levelToOpen = savedLevel;
+        }
+    }
+
+    showLevelPage(levelToOpen);
     clearRequest();
 }
 
@@ -108,17 +116,21 @@ void PartyLevelLoader::showLevelPage(GJGameLevel* level) {
 
     PlatformToolbox::showCursor();
 
-    if (auto gameManager = GameManager::sharedState()) {
-        gameManager->m_sceneEnum = 3;
-    }
-
     auto levelScene = LevelInfoLayer::scene(level, false);
     if (!levelScene) {
         Notification::create("Could not open party level", NotificationIcon::Error)->show();
         return;
     }
 
-    CCDirector::sharedDirector()->replaceScene(CCTransitionFade::create(0.2f, levelScene));
+    auto director = CCDirector::sharedDirector();
+    auto runningScene = director ? director->getRunningScene() : nullptr;
+    auto leavingGameplay = runningScene && runningScene->getChildByType<PlayLayer>(0);
+
+    if (leavingGameplay) {
+        director->replaceScene(CCTransitionFade::create(0.18f, levelScene));
+    } else {
+        director->pushScene(CCTransitionFade::create(0.18f, levelScene));
+    }
 }
 
 bool PartyLevelLoader::isAlreadyShowing(int levelId) const {
