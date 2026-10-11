@@ -3,6 +3,7 @@
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 
+#include "core/PartyLevelLoader.hpp"
 #include "core/PartyManager.hpp"
 #include "network/GlobedTransport.hpp"
 #include "ui/PartyPopup.hpp"
@@ -151,6 +152,20 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
             if (m_fields->attemptLabel) {
                 m_fields->attemptLabel->setVisible(false);
             }
+
+            auto const& state = partyManager.state();
+            auto localPlayer = partyManager.localPlayer();
+            if (
+                m_fields->blockRestart &&
+                state.phase == gdparty::PartyPhase::Playing &&
+                localPlayer &&
+                localPlayer->currentLevelId > 0 &&
+                this->m_level &&
+                localPlayer->currentLevelId != this->m_level->m_levelID.value()
+            ) {
+                m_fields->blockRestart = false;
+                gdparty::PartyLevelLoader::get().openAssignedLevel();
+            }
             return;
         }
 
@@ -167,6 +182,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
 
     void destroyPlayer(PlayerObject* player, GameObject* object) {
         auto shouldShowDecision = false;
+        auto shouldShowResults = false;
         auto achievedProgress = 0;
 
         if (isPartyRunActive() && !m_fields->decisionShown) {
@@ -193,6 +209,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
                     m_fields->blockRestart = true;
                     m_fields->decisionShown = true;
                 }
+                shouldShowResults = reachedGoal;
             } else if (localPlayer && achievedProgress >= localPlayer->rouletteTarget) {
                 m_fields->blockRestart = true;
                 m_fields->decisionShown = true;
@@ -209,11 +226,19 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
                     popup->show();
                 }
             });
+        } else if (shouldShowResults) {
+            Loader::get()->queueInMainThread([] {
+                PlatformToolbox::showCursor();
+                if (auto popup = gdparty::PartyPopup::create()) {
+                    popup->show();
+                }
+            });
         }
     }
 
     void levelComplete() {
         auto shouldShowDecision = false;
+        auto shouldShowResults = false;
 
         if (isPartyRunActive() && !m_fields->decisionShown) {
             auto& manager = gdparty::PartyManager::get();
@@ -233,6 +258,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
             if (state.settings.gameMode == gdparty::GameModeType::RecentRush) {
                 m_fields->blockRestart = true;
                 m_fields->decisionShown = true;
+                shouldShowResults = true;
             } else if (localPlayer && AchievedProgress >= localPlayer->rouletteTarget) {
                 m_fields->blockRestart = true;
                 m_fields->decisionShown = true;
@@ -246,6 +272,13 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
             Loader::get()->queueInMainThread([] {
                 PlatformToolbox::showCursor();
                 if (auto popup = gdparty::RoundDecisionPopup::create(100)) {
+                    popup->show();
+                }
+            });
+        } else if (shouldShowResults) {
+            Loader::get()->queueInMainThread([] {
+                PlatformToolbox::showCursor();
+                if (auto popup = gdparty::PartyPopup::create()) {
                     popup->show();
                 }
             });
