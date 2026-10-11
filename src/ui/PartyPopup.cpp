@@ -83,7 +83,7 @@ bool PartyPopup::init() {
 
     partyui::addLabel(
         m_shell,
-        "GD PARTY",
+        "PARTY",
         "goldFont.fnt",
         0.72f,
         {shellSize.width / 2.0f, shellSize.height - 20.0f},
