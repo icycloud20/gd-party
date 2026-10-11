@@ -5,6 +5,9 @@
 
 #include <memory>
 #include <optional>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace gdparty {
 
@@ -63,11 +66,21 @@ private:
     PartyPlayer* findMutablePlayer(int accountId);
     PartyMessage baseMessage(PartyMessageType type);
 
+    void beginRouletteLevelAssignment();
+    void assignPlayerToTarget(int accountId, int target);
+    void resolveTargetLevel(int target, std::optional<int> levelId);
+    std::uint64_t seedForTarget(int target) const;
+
     PartyState m_state;
     std::unique_ptr<PartyTransport> m_transport;
     std::uint32_t m_sequence = 0;
     int m_lastReportedTarget = 0;
     bool m_pendingRoundAdvanceOpen = false;
+
+    std::unordered_map<int, int> m_levelByTarget;
+    std::unordered_map<int, std::vector<int>> m_waitingPlayersByTarget;
+    std::unordered_set<int> m_targetsLoading;
+    std::unordered_set<int> m_usedLevelIds;
 };
 
 } // namespace gdparty
