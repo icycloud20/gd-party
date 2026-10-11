@@ -25,9 +25,19 @@ public:
     bool joinParty();
     void leaveParty();
     void setReady(bool ready);
+
+    void setGameMode(GameModeType gameMode);
     void setTargetProgress(int targetProgress);
+    void setDifficulty(DifficultyFilter difficulty);
+    void setOverrunCounts(bool enabled);
+    void setPracticeModeEnabled(bool enabled);
+    void setMaxAttempts(int maxAttempts);
+    void setRecentPoolSize(int recentPoolSize);
+
     bool startMatch();
     void reportLocalProgress(int progress, int levelId);
+    void reportAttemptEnded(int progress, int levelId);
+    bool requestAdvanceRound();
 
     PartyPlayer const* localPlayer() const;
     PartyPlayer const* findPlayer(int accountId) const;
@@ -41,7 +51,15 @@ private:
     void broadcastSnapshot();
     void sendSnapshotTo(int accountId);
     void applySnapshot(PartyMessage const& message);
-    void addOrUpdatePlayer(int accountId, std::string const& name);
+    void addOrUpdatePlayer(
+        int accountId,
+        std::string const& name,
+        int cubeIcon = 1,
+        int color1 = 0,
+        int color2 = 3,
+        bool glow = false,
+        int glowColor = 0
+    );
     PartyPlayer* findMutablePlayer(int accountId);
     PartyMessage baseMessage(PartyMessageType type);
 
@@ -49,6 +67,7 @@ private:
     std::unique_ptr<PartyTransport> m_transport;
     std::uint32_t m_sequence = 0;
     int m_lastReportedTarget = 0;
+    bool m_pendingRoundAdvanceOpen = false;
 };
 
 } // namespace gdparty
