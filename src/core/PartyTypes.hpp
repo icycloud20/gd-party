@@ -66,7 +66,7 @@ struct MatchSettings {
     DifficultyFilter difficulty = DifficultyFilter::RandomAllExceptAuto;
     int targetProgress = 50;
     int maxAttempts = 1;
-    int recentPoolSize = 100;
+    int recentPoolSize = 200;
     bool overrunCounts = true;
     bool practiceModeEnabled = false;
     std::uint64_t seed = 0;
