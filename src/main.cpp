@@ -45,7 +45,10 @@ class $modify(GDPartyMenuLayer, MenuLayer) {
     }
 
     void onPartyButton(CCObject*) {
-        gdparty::PartyPopup::create()->show();
+        PlatformToolbox::showCursor();
+        if (auto popup = gdparty::PartyPopup::create()) {
+            popup->show();
+        }
     }
 };
 
@@ -76,10 +79,10 @@ class $modify(GDPartyPauseLayer, PauseLayer) {
 
 class $modify(GDPartyPlayLayer, PlayLayer) {
     struct Fields {
-        CCLayerColor* panel = nullptr;
         CCLabelBMFont* targetLabel = nullptr;
+        CCLabelBMFont* attemptLabel = nullptr;
         int bestThisAttempt = 0;
-        bool awaitingRoundChoice = false;
+        bool blockRestart = false;
         bool decisionShown = false;
     };
 
@@ -91,16 +94,20 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         auto windowSize = CCDirector::sharedDirector()->getWinSize();
         auto parent = this->m_uiLayer ? static_cast<CCNode*>(this->m_uiLayer) : static_cast<CCNode*>(this);
 
-        m_fields->panel = CCLayerColor::create(ccc4(0, 0, 0, 135), 128.0f, 27.0f);
-        m_fields->panel->setPosition({windowSize.width / 2.0f - 64.0f, windowSize.height - 34.0f});
-        m_fields->panel->setZOrder(1000);
-        m_fields->panel->setVisible(false);
-        parent->addChild(m_fields->panel);
-
         m_fields->targetLabel = CCLabelBMFont::create("REACH 1%", "bigFont.fnt");
-        m_fields->targetLabel->setScale(0.43f);
-        m_fields->targetLabel->setPosition({64.0f, 13.5f});
-        m_fields->panel->addChild(m_fields->targetLabel);
+        m_fields->targetLabel->setScale(0.34f);
+        m_fields->targetLabel->setPosition({windowSize.width / 2.0f, windowSize.height - 30.0f});
+        m_fields->targetLabel->setZOrder(1000);
+        m_fields->targetLabel->setVisible(false);
+        parent->addChild(m_fields->targetLabel);
+
+        m_fields->attemptLabel = CCLabelBMFont::create("", "chatFont.fnt");
+        m_fields->attemptLabel->setScale(0.38f);
+        m_fields->attemptLabel->setPosition({windowSize.width / 2.0f, windowSize.height - 42.0f});
+        m_fields->attemptLabel->setZOrder(1000);
+        m_fields->attemptLabel->setOpacity(210);
+        m_fields->attemptLabel->setVisible(false);
+        parent->addChild(m_fields->attemptLabel);
 
         refreshPartyHud();
         return true;
@@ -138,8 +145,11 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         partyManager.refreshRoomContext();
 
         if (!isPartyRunActive()) {
-            if (m_fields->panel) {
-                m_fields->panel->setVisible(false);
+            if (m_fields->targetLabel) {
+                m_fields->targetLabel->setVisible(false);
+            }
+            if (m_fields->attemptLabel) {
+                m_fields->attemptLabel->setVisible(false);
             }
             return;
         }
@@ -160,19 +170,31 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         auto achievedProgress = 0;
 
         if (isPartyRunActive() && !m_fields->decisionShown) {
-            auto localPlayer = gdparty::PartyManager::get().localPlayer();
+            auto& manager = gdparty::PartyManager::get();
+            auto const& state = manager.state();
+            auto localPlayer = manager.localPlayer();
+
             achievedProgress = std::max(
                 m_fields->bestThisAttempt,
                 std::clamp(this->getCurrentPercentInt(), 0, 100)
             );
 
-            gdparty::PartyManager::get().reportAttemptEnded(
+            manager.reportAttemptEnded(
                 achievedProgress,
                 this->m_level->m_levelID.value()
             );
 
-            if (localPlayer && achievedProgress >= localPlayer->rouletteTarget) {
-                m_fields->awaitingRoundChoice = true;
+            if (state.settings.gameMode == gdparty::GameModeType::RecentRush) {
+                auto reachedGoal = achievedProgress >= state.settings.targetProgress;
+                auto exhaustedLevel = localPlayer &&
+                    localPlayer->attemptCount + 1 >= state.settings.maxAttempts;
+
+                if (reachedGoal || exhaustedLevel) {
+                    m_fields->blockRestart = true;
+                    m_fields->decisionShown = true;
+                }
+            } else if (localPlayer && achievedProgress >= localPlayer->rouletteTarget) {
+                m_fields->blockRestart = true;
                 m_fields->decisionShown = true;
                 shouldShowDecision = true;
             }
@@ -182,6 +204,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
 
         if (shouldShowDecision) {
             Loader::get()->queueInMainThread([achievedProgress] {
+                PlatformToolbox::showCursor();
                 if (auto popup = gdparty::RoundDecisionPopup::create(achievedProgress)) {
                     popup->show();
                 }
@@ -193,20 +216,25 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         auto shouldShowDecision = false;
 
         if (isPartyRunActive() && !m_fields->decisionShown) {
-            auto localPlayer = gdparty::PartyManager::get().localPlayer();
-            auto achievedProgress = 100;
+            auto& manager = gdparty::PartyManager::get();
+            auto const& state = manager.state();
+            auto localPlayer = manager.localPlayer();
+            constexpr int AchievedProgress = 100;
 
-            gdparty::PartyManager::get().reportLocalProgress(
-                achievedProgress,
+            manager.reportLocalProgress(
+                AchievedProgress,
                 this->m_level->m_levelID.value()
             );
-            gdparty::PartyManager::get().reportAttemptEnded(
-                achievedProgress,
+            manager.reportAttemptEnded(
+                AchievedProgress,
                 this->m_level->m_levelID.value()
             );
 
-            if (localPlayer && achievedProgress >= localPlayer->rouletteTarget) {
-                m_fields->awaitingRoundChoice = true;
+            if (state.settings.gameMode == gdparty::GameModeType::RecentRush) {
+                m_fields->blockRestart = true;
+                m_fields->decisionShown = true;
+            } else if (localPlayer && AchievedProgress >= localPlayer->rouletteTarget) {
+                m_fields->blockRestart = true;
                 m_fields->decisionShown = true;
                 shouldShowDecision = true;
             }
@@ -216,6 +244,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
 
         if (shouldShowDecision) {
             Loader::get()->queueInMainThread([] {
+                PlatformToolbox::showCursor();
                 if (auto popup = gdparty::RoundDecisionPopup::create(100)) {
                     popup->show();
                 }
@@ -224,7 +253,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
     }
 
     void resetLevel() {
-        if (m_fields->awaitingRoundChoice) {
+        if (m_fields->blockRestart) {
             return;
         }
 
@@ -234,15 +263,17 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
     }
 
     void refreshPartyHud() {
-        if (!m_fields->panel || !m_fields->targetLabel || !this->m_level) {
+        if (!m_fields->targetLabel || !m_fields->attemptLabel || !this->m_level) {
             return;
         }
 
         auto& partyManager = gdparty::PartyManager::get();
+        auto const& state = partyManager.state();
         auto localPlayer = partyManager.localPlayer();
         auto shouldShow = isPartyRunActive();
 
-        m_fields->panel->setVisible(shouldShow);
+        m_fields->targetLabel->setVisible(shouldShow);
+        m_fields->attemptLabel->setVisible(shouldShow && state.settings.gameMode == gdparty::GameModeType::RecentRush);
         if (!shouldShow || !localPlayer) {
             return;
         }
@@ -251,15 +282,31 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
             m_fields->bestThisAttempt,
             std::clamp(this->getCurrentPercentInt(), 0, 100)
         );
-        auto secured = localPlayer->roundSecured || currentProgress >= localPlayer->rouletteTarget;
 
-        m_fields->targetLabel->setString(
-            fmt::format("REACH {}%", localPlayer->rouletteTarget).c_str()
-        );
-        m_fields->targetLabel->setColor(
-            secured
-                ? ccc3(255, 210, 70)
-                : ccc3(255, 255, 255)
-        );
+        if (state.settings.gameMode == gdparty::GameModeType::RecentRush) {
+            auto secured = currentProgress >= state.settings.targetProgress;
+            m_fields->targetLabel->setString(
+                fmt::format("GOAL {}%", state.settings.targetProgress).c_str()
+            );
+            m_fields->targetLabel->setColor(
+                secured ? ccc3(255, 210, 70) : ccc3(255, 255, 255)
+            );
+            m_fields->attemptLabel->setString(
+                fmt::format(
+                    "ATTEMPT {}/{}",
+                    std::min(localPlayer->attemptCount + 1, state.settings.maxAttempts),
+                    state.settings.maxAttempts
+                ).c_str()
+            );
+        } else {
+            auto secured = localPlayer->roundSecured || currentProgress >= localPlayer->rouletteTarget;
+            m_fields->targetLabel->setString(
+                fmt::format("REACH {}%", localPlayer->rouletteTarget).c_str()
+            );
+            m_fields->targetLabel->setColor(
+                secured ? ccc3(255, 210, 70) : ccc3(255, 255, 255)
+            );
+            m_fields->attemptLabel->setVisible(false);
+        }
     }
 };
