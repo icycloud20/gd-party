@@ -61,7 +61,7 @@ bool PartyPopup::init() {
     }
 
     auto windowSize = CCDirector::sharedDirector()->getWinSize();
-    auto center = windowSize / 2.0f;
+    auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
     auto shellSize = CCSize{
         std::clamp(windowSize.width - 118.0f, 390.0f, 430.0f),
         std::clamp(windowSize.height - 34.0f, 270.0f, 292.0f)
