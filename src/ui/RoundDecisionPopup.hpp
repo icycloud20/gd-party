@@ -1,6 +1,7 @@
 #pragma once
 
-#include "PartyBaseLayer.hpp"
+#include <Geode/Geode.hpp>
+#include <Geode/ui/Popup.hpp>
 
 namespace gdparty {
 
@@ -15,15 +16,12 @@ struct RoundDecisionContext {
     bool goalReached = false;
 };
 
-class RoundDecisionPopup : public PartyBaseLayer {
+class RoundDecisionPopup : public geode::Popup {
 public:
     static RoundDecisionPopup* create(RoundDecisionContext const& context);
-    void show();
 
 protected:
     bool init(RoundDecisionContext const& context);
-    bool ccTouchBegan(cocos2d::CCTouch* touch, cocos2d::CCEvent* event) override;
-    void keyBackClicked() override;
 
 private:
     void tick(float deltaTime);
@@ -33,9 +31,8 @@ private:
     void onLeaderboard(cocos2d::CCObject* sender);
 
     RoundDecisionContext m_context;
-    cocos2d::CCLabelBMFont* m_titleLabel = nullptr;
     cocos2d::CCLabelBMFont* m_progressLabel = nullptr;
-    cocos2d::CCLabelBMFont* m_detailLabel = nullptr;
+    cocos2d::CCLabelBMFont* m_attemptLabel = nullptr;
     cocos2d::CCLabelBMFont* m_statusLabel = nullptr;
     CCMenuItemSpriteExtra* m_nextButton = nullptr;
     CCMenuItemSpriteExtra* m_leaderboardButton = nullptr;
