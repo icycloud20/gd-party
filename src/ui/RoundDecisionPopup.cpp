@@ -25,6 +25,11 @@ bool RoundDecisionPopup::init(int achievedProgress) {
 
     m_achievedProgress = achievedProgress;
 
+    if (m_closeBtn) {
+        m_closeBtn->setVisible(false);
+        m_closeBtn->setEnabled(false);
+    }
+
     auto manager = &PartyManager::get();
     auto player = manager->localPlayer();
     auto target = player ? player->rouletteTarget : 0;
@@ -70,6 +75,14 @@ bool RoundDecisionPopup::init(int achievedProgress) {
     buttonMenu->addChild(leaderboardButton);
 
     return true;
+}
+
+void RoundDecisionPopup::keyDown(cocos2d::enumKeyCodes key, double timestamp) {
+    if (key == cocos2d::enumKeyCodes::KEY_Escape) {
+        return;
+    }
+
+    Popup::keyDown(key, timestamp);
 }
 
 void RoundDecisionPopup::onNextLevel(CCObject*) {
