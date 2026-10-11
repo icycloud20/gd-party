@@ -1,6 +1,7 @@
 #include "RoundDecisionPopup.hpp"
 
 #include "LeaderboardPopup.hpp"
+#include "PartyUI.hpp"
 #include "../core/PartyManager.hpp"
 
 using namespace geode::prelude;
@@ -19,10 +20,11 @@ RoundDecisionPopup* RoundDecisionPopup::create(int achievedProgress) {
 }
 
 bool RoundDecisionPopup::init(int achievedProgress) {
-    if (!Popup::init(330.0f, 190.0f, "GJ_square01.png")) {
+    if (!Popup::init(310.0f, 154.0f, "GJ_square01.png")) {
         return false;
     }
 
+    PlatformToolbox::showCursor();
     m_achievedProgress = achievedProgress;
 
     if (m_closeBtn) {
@@ -30,49 +32,53 @@ bool RoundDecisionPopup::init(int achievedProgress) {
         m_closeBtn->setEnabled(false);
     }
 
-    auto manager = &PartyManager::get();
-    auto player = manager->localPlayer();
+    auto player = PartyManager::get().localPlayer();
     auto target = player ? player->rouletteTarget : 0;
 
-    setTitle("Target secured!");
+    setTitle("Round Clear");
+    partyui::addPanel(m_mainLayer, {155.0f, 91.0f}, {250.0f, 45.0f}, 58);
 
-    auto resultLabel = CCLabelBMFont::create(
-        fmt::format("{}% reached", achievedProgress).c_str(),
-        "goldFont.fnt"
+    auto resultLabel = partyui::addLabel(
+        m_mainLayer,
+        fmt::format("{}%", achievedProgress),
+        "goldFont.fnt",
+        0.48f,
+        {116.0f, 91.0f},
+        {0.5f, 0.5f}
     );
-    resultLabel->setScale(0.52f);
-    resultLabel->setPosition({165.0f, 128.0f});
-    m_mainLayer->addChild(resultLabel);
+    resultLabel->limitLabelWidth(72.0f, 0.48f, 0.35f);
 
-    auto targetLabel = CCLabelBMFont::create(
-        fmt::format("Required: {}%", target).c_str(),
-        "bigFont.fnt"
+    partyui::addLabel(
+        m_mainLayer,
+        fmt::format("target {}%", target),
+        "chatFont.fnt",
+        0.44f,
+        {186.0f, 91.0f},
+        {0.0f, 0.5f}
     );
-    targetLabel->setScale(0.34f);
-    targetLabel->setPosition({165.0f, 105.0f});
-    m_mainLayer->addChild(targetLabel);
 
     auto buttonMenu = CCMenu::create();
     buttonMenu->setPosition({0.0f, 0.0f});
-    m_mainLayer->addChild(buttonMenu);
+    m_mainLayer->addChild(buttonMenu, 3);
 
-    auto nextSprite = ButtonSprite::create("Next Level", 115, true, "bigFont.fnt", "GJ_button_01.png", 30.0f, 0.62f);
-    m_nextButton = CCMenuItemSpriteExtra::create(
-        nextSprite,
+    m_nextButton = partyui::addTextButton(
+        buttonMenu,
         this,
-        menu_selector(RoundDecisionPopup::onNextLevel)
+        menu_selector(RoundDecisionPopup::onNextLevel),
+        "Next",
+        {105.0f, 43.0f},
+        82.0f
     );
-    m_nextButton->setPosition({103.0f, 58.0f});
-    buttonMenu->addChild(m_nextButton);
-
-    auto leaderboardSprite = ButtonSprite::create("Leaderboard", 120, true, "bigFont.fnt", "GJ_button_02.png", 30.0f, 0.57f);
-    auto leaderboardButton = CCMenuItemSpriteExtra::create(
-        leaderboardSprite,
+    partyui::addTextButton(
+        buttonMenu,
         this,
-        menu_selector(RoundDecisionPopup::onLeaderboard)
+        menu_selector(RoundDecisionPopup::onLeaderboard),
+        "Standings",
+        {207.0f, 43.0f},
+        94.0f,
+        "GJ_button_02.png",
+        0.5f
     );
-    leaderboardButton->setPosition({232.0f, 58.0f});
-    buttonMenu->addChild(leaderboardButton);
 
     return true;
 }
@@ -104,19 +110,26 @@ void RoundDecisionPopup::onNextLevel(CCObject*) {
 
     if (willFinish) {
         onClose(nullptr);
+        PlatformToolbox::showCursor();
         if (auto leaderboard = LeaderboardPopup::create()) {
             leaderboard->show();
         }
         return;
     }
 
-    auto label = CCLabelBMFont::create("Loading next level...", "goldFont.fnt");
-    label->setScale(0.34f);
-    label->setPosition({165.0f, 28.0f});
-    m_mainLayer->addChild(label);
+    auto loadingLabel = partyui::addLabel(
+        m_mainLayer,
+        "Loading next level...",
+        "chatFont.fnt",
+        0.35f,
+        {155.0f, 18.0f},
+        {0.5f, 0.5f}
+    );
+    loadingLabel->setOpacity(190);
 }
 
 void RoundDecisionPopup::onLeaderboard(CCObject*) {
+    PlatformToolbox::showCursor();
     if (auto leaderboard = LeaderboardPopup::create()) {
         leaderboard->show();
     }
