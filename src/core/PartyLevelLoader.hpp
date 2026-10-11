@@ -19,8 +19,8 @@ public:
 private:
     PartyLevelLoader() = default;
 
-    void playLevel(GJGameLevel* level);
-    bool isAlreadyPlaying(int levelId) const;
+    void showLevelPage(GJGameLevel* level);
+    bool isAlreadyShowing(int levelId) const;
     void clearRequest();
 
     bool m_loading = false;
