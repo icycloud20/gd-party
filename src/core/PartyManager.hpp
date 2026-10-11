@@ -37,7 +37,7 @@ public:
     bool startMatch();
     void reportLocalProgress(int progress, int levelId);
     void reportAttemptEnded(int progress, int levelId);
-    bool requestAdvanceRound();
+    bool requestAdvanceRound(int achievedProgress);
 
     PartyPlayer const* localPlayer() const;
     PartyPlayer const* findPlayer(int accountId) const;
