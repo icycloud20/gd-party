@@ -2,10 +2,12 @@
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/ui/BasedButtonSprite.hpp>
 
 #include "core/PartyManager.hpp"
 #include "network/GlobedTransport.hpp"
 #include "ui/PartyPopup.hpp"
+#include "ui/PartyUI.hpp"
 #include "ui/RoundDecisionPopup.hpp"
 
 #include <algorithm>
@@ -30,7 +32,21 @@ class $modify(GDPartyMenuLayer, MenuLayer) {
             return true;
         }
 
-        auto buttonSprite = ButtonSprite::create("Party", 70, true, "bigFont.fnt", "GJ_button_01.png", 30.0f, 0.75f);
+        CCNode* partyIcon = gdparty::partyui::makeSizedSprite(
+            gdparty::partyui::loadGlobedSprite("icon-crown-small.png"),
+            34.0f
+        );
+        if (!partyIcon) {
+            auto fallback = CCLabelBMFont::create("P", "goldFont.fnt");
+            fallback->setScale(0.78f);
+            partyIcon = fallback;
+        }
+
+        auto buttonSprite = CircleButtonSprite::create(
+            partyIcon,
+            CircleBaseColor::Green,
+            CircleBaseSize::MediumAlt
+        );
         auto partyButton = CCMenuItemSpriteExtra::create(
             buttonSprite,
             this,
@@ -82,6 +98,8 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         CCLabelBMFont* targetLabel = nullptr;
         CCLabelBMFont* attemptLabel = nullptr;
         int bestThisAttempt = 0;
+        float activePartyRunTime = 0.0f;
+        bool gameplayArmed = false;
         bool blockRestart = false;
         bool decisionShown = false;
     };
@@ -95,17 +113,17 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         auto parent = this->m_uiLayer ? static_cast<CCNode*>(this->m_uiLayer) : static_cast<CCNode*>(this);
 
         m_fields->targetLabel = CCLabelBMFont::create("REACH 1%", "bigFont.fnt");
-        m_fields->targetLabel->setScale(0.34f);
-        m_fields->targetLabel->setPosition({windowSize.width / 2.0f, windowSize.height - 30.0f});
+        m_fields->targetLabel->setScale(0.38f);
+        m_fields->targetLabel->setPosition({windowSize.width / 2.0f, windowSize.height - 31.0f});
         m_fields->targetLabel->setZOrder(1000);
         m_fields->targetLabel->setVisible(false);
         parent->addChild(m_fields->targetLabel);
 
-        m_fields->attemptLabel = CCLabelBMFont::create("", "chatFont.fnt");
-        m_fields->attemptLabel->setScale(0.38f);
-        m_fields->attemptLabel->setPosition({windowSize.width / 2.0f, windowSize.height - 42.0f});
+        m_fields->attemptLabel = CCLabelBMFont::create("", "bigFont.fnt");
+        m_fields->attemptLabel->setScale(0.22f);
+        m_fields->attemptLabel->setPosition({windowSize.width / 2.0f, windowSize.height - 44.0f});
         m_fields->attemptLabel->setZOrder(1000);
-        m_fields->attemptLabel->setOpacity(210);
+        m_fields->attemptLabel->setOpacity(220);
         m_fields->attemptLabel->setVisible(false);
         parent->addChild(m_fields->attemptLabel);
 
@@ -155,6 +173,11 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         }
 
         auto currentProgress = std::clamp(this->getCurrentPercentInt(), 0, 100);
+        m_fields->activePartyRunTime += std::max(0.0f, deltaTime);
+        if (currentProgress > 0 || m_fields->activePartyRunTime >= 0.18f) {
+            m_fields->gameplayArmed = true;
+        }
+
         m_fields->bestThisAttempt = std::max(m_fields->bestThisAttempt, currentProgress);
 
         partyManager.reportLocalProgress(
@@ -169,7 +192,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         auto shouldShowDecision = false;
         gdparty::RoundDecisionContext decisionContext;
 
-        if (isPartyRunActive() && !m_fields->decisionShown) {
+        if (isPartyRunActive() && m_fields->gameplayArmed && !m_fields->decisionShown) {
             auto& manager = gdparty::PartyManager::get();
             auto const& state = manager.state();
             auto localPlayer = manager.localPlayer();
@@ -224,7 +247,7 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         auto shouldShowDecision = false;
         gdparty::RoundDecisionContext decisionContext;
 
-        if (isPartyRunActive() && !m_fields->decisionShown) {
+        if (isPartyRunActive() && m_fields->gameplayArmed && !m_fields->decisionShown) {
             auto& manager = gdparty::PartyManager::get();
             auto const& state = manager.state();
             auto localPlayer = manager.localPlayer();
@@ -272,6 +295,8 @@ class $modify(GDPartyPlayLayer, PlayLayer) {
         }
 
         m_fields->bestThisAttempt = 0;
+        m_fields->activePartyRunTime = 0.0f;
+        m_fields->gameplayArmed = false;
         m_fields->decisionShown = false;
         PlayLayer::resetLevel();
     }

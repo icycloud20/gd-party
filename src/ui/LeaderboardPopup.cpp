@@ -9,6 +9,16 @@
 using namespace geode::prelude;
 
 namespace gdparty {
+namespace {
+
+constexpr float SummaryHeight = 40.0f;
+constexpr float RowHeight = 36.0f;
+
+char const* modeName(GameModeType mode) {
+    return mode == GameModeType::RecentRush ? "Recent Rush" : "Roulette Race";
+}
+
+} // namespace
 
 LeaderboardPopup* LeaderboardPopup::create() {
     auto layer = new LeaderboardPopup();
@@ -32,58 +42,69 @@ bool LeaderboardPopup::init() {
         std::clamp(windowSize.width * 0.75f, 360.0f, 420.0f),
         290.0f
     };
-    auto innerWidth = shellSize.width * 0.8f;
-    auto innerLeft = (shellSize.width - innerWidth) / 2.0f;
-    auto innerRight = innerLeft + innerWidth;
+    auto listSize = CCSize{shellSize.width * 0.8f, 218.0f};
+    auto listLeft = (shellSize.width - listSize.width) / 2.0f;
+    constexpr float ListBottom = 25.0f;
 
-    auto shell = CCNode::create();
-    shell->setContentSize(shellSize);
-    shell->setAnchorPoint({0.5f, 0.5f});
-    shell->setPosition(center);
-    addChild(shell, 2);
+    m_shell = CCNode::create();
+    m_shell->setContentSize(shellSize);
+    m_shell->setAnchorPoint({0.5f, 0.5f});
+    m_shell->setPosition(center);
+    addChild(m_shell, 2);
 
     auto outer = CCScale9Sprite::create("GJ_square02.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
     outer->setContentSize(shellSize);
     outer->setPosition({shellSize.width / 2.0f, shellSize.height / 2.0f});
-    shell->addChild(outer, -5);
+    m_shell->addChild(outer, -5);
 
-    partyui::addLabel(
-        shell,
+    auto title = partyui::addLabel(
+        m_shell,
         "LEADERBOARD",
         "goldFont.fnt",
         0.68f,
-        {shellSize.width / 2.0f, shellSize.height - 18.0f},
+        {shellSize.width / 2.0f, shellSize.height - 16.0f},
         {0.5f, 0.5f}
     );
+    title->limitLabelWidth(320.0f, 0.68f, 0.42f);
+
+    partyui::addBlueListFrame(m_shell, {listLeft, ListBottom}, listSize);
+
+    m_scroll = ScrollLayer::create(listSize);
+    m_scroll->setPosition({listLeft, ListBottom});
+    m_scroll->setTouchEnabled(true);
+    m_scroll->setZOrder(2);
+    m_shell->addChild(m_scroll);
+
+    m_contentLayer = m_scroll->m_contentLayer;
+    m_contentLayer->setContentSize(listSize);
+
+    m_emptyLabel = partyui::addLabel(
+        m_shell,
+        "NO PLAYERS",
+        "bigFont.fnt",
+        0.42f,
+        {shellSize.width / 2.0f, ListBottom + listSize.height / 2.0f},
+        {0.5f, 0.5f}
+    );
+    m_emptyLabel->setZOrder(8);
+
+    schedule(schedule_selector(LeaderboardPopup::tick), 0.15f);
+    rebuild();
+    return true;
+}
+
+void LeaderboardPopup::tick(float) {
+    PartyManager::get().refreshRoomContext();
+    rebuild();
+}
+
+void LeaderboardPopup::rebuild() {
+    if (!m_scroll || !m_contentLayer || !m_emptyLabel) {
+        return;
+    }
 
     auto const& state = PartyManager::get().state();
     auto recentRush = state.settings.gameMode == GameModeType::RecentRush;
-
-    auto modeLabel = partyui::addLabel(
-        shell,
-        recentRush ? "RECENT RUSH" : "ROULETTE RACE",
-        "bigFont.fnt",
-        0.28f,
-        {innerLeft + 8.0f, shellSize.height - 42.0f}
-    );
-    modeLabel->setOpacity(215);
-
-    auto goalLabel = partyui::addLabel(
-        shell,
-        fmt::format("GOAL {}%", state.settings.targetProgress),
-        "goldFont.fnt",
-        0.27f,
-        {innerRight - 8.0f, shellSize.height - 42.0f},
-        {1.0f, 0.5f}
-    );
-    goalLabel->setOpacity(230);
-
-    auto inner = CCScale9Sprite::create("square02_001.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
-    inner->setContentSize({innerWidth, 214.0f});
-    inner->setPosition({shellSize.width / 2.0f, 125.0f});
-    inner->setColor({51, 68, 153});
-    inner->setOpacity(225);
-    shell->addChild(inner, -2);
 
     std::vector<PartyPlayer const*> players;
     players.reserve(state.players.size());
@@ -114,107 +135,180 @@ bool LeaderboardPopup::init() {
         return first->name < second->name;
     });
 
+    m_emptyLabel->setVisible(players.empty());
+    m_scroll->setVisible(!players.empty());
+    if (players.empty()) {
+        m_emptyLabel->setString("NO PLAYERS");
+        return;
+    }
+
+    auto listSize = m_scroll->getContentSize();
+    auto contentHeight = std::max(
+        listSize.height,
+        SummaryHeight + static_cast<float>(players.size()) * RowHeight
+    );
+    auto playerCountChanged = players.size() != m_lastPlayerCount;
+
+    m_contentLayer->removeAllChildren();
+    m_contentLayer->setContentSize({listSize.width, contentHeight});
+
+    auto summaryRow = CCLayerColor::create(
+        ccc4(0x28, 0x35, 0x77, 255),
+        listSize.width,
+        SummaryHeight
+    );
+    summaryRow->setPosition({0.0f, contentHeight - SummaryHeight});
+    m_contentLayer->addChild(summaryRow);
+
+    auto modeLabel = partyui::addLabel(
+        summaryRow,
+        modeName(state.settings.gameMode),
+        "bigFont.fnt",
+        0.40f,
+        {12.0f, SummaryHeight / 2.0f}
+    );
+    modeLabel->limitLabelWidth(listSize.width * 0.38f, 0.40f, 0.29f);
+
+    auto difficultyX = listSize.width * 0.58f;
+    if (auto icon = partyui::makeDifficultyIcon(state.settings.difficulty, 0.44f)) {
+        icon->setPosition({difficultyX - 25.0f, SummaryHeight / 2.0f});
+        summaryRow->addChild(icon, 3);
+    }
+
+    auto difficultyLabel = partyui::addLabel(
+        summaryRow,
+        partyui::difficultyName(state.settings.difficulty),
+        "goldFont.fnt",
+        0.35f,
+        {difficultyX - 5.0f, SummaryHeight / 2.0f},
+        {0.0f, 0.5f}
+    );
+    difficultyLabel->limitLabelWidth(listSize.width * 0.24f, 0.35f, 0.25f);
+
+    auto goalLabel = partyui::addLabel(
+        summaryRow,
+        fmt::format("{}%", state.settings.targetProgress),
+        "goldFont.fnt",
+        0.46f,
+        {listSize.width - 10.0f, SummaryHeight / 2.0f},
+        {1.0f, 0.5f}
+    );
+    goalLabel->limitLabelWidth(56.0f, 0.46f, 0.32f);
+
     auto gameManager = GameManager::sharedState();
-    auto shown = std::min<std::size_t>(players.size(), 6);
-    auto topY = shellSize.height - 72.0f;
-    constexpr float RowHeight = 30.0f;
 
-    for (std::size_t index = 0; index < shown; ++index) {
+    for (std::size_t index = 0; index < players.size(); ++index) {
         auto const& player = *players[index];
-        auto y = topY - static_cast<float>(index) * RowHeight;
+        auto rowTop = contentHeight - SummaryHeight - static_cast<float>(index) * RowHeight;
+        auto rowBottom = rowTop - RowHeight;
+        auto rowColor = index % 2 == 0
+            ? ccc4(0x33, 0x44, 0x99, 255)
+            : ccc4(0x28, 0x35, 0x77, 255);
 
-        if (index % 2 == 1) {
-            auto rowShade = CCLayerColor::create(ccc4(255, 255, 255, 12), innerWidth - 4.0f, RowHeight);
-            rowShade->setPosition({innerLeft + 2.0f, y - RowHeight / 2.0f});
-            shell->addChild(rowShade, 0);
-        }
+        auto row = CCLayerColor::create(rowColor, listSize.width, RowHeight);
+        row->setPosition({0.0f, rowBottom});
+        m_contentLayer->addChild(row);
 
         auto rankLabel = partyui::addLabel(
-            shell,
+            row,
             fmt::format("{}.", index + 1),
             index == 0 ? "goldFont.fnt" : "bigFont.fnt",
-            0.29f,
-            {innerLeft + 23.0f, y},
+            0.35f,
+            {24.0f, RowHeight / 2.0f},
             {1.0f, 0.5f}
         );
-        rankLabel->limitLabelWidth(22.0f, 0.29f, 0.21f);
+        rankLabel->limitLabelWidth(24.0f, 0.35f, 0.25f);
 
         auto icon = SimplePlayer::create(std::max(1, player.cubeIcon));
-        icon->setScale(0.33f);
-        icon->setPosition({innerLeft + 42.0f, y});
+        icon->setScale(0.44f);
+        icon->setPosition({45.0f, RowHeight / 2.0f});
         if (gameManager) {
             icon->m_firstLayer->setColor(gameManager->colorForIdx(player.color1));
             icon->m_secondLayer->setColor(gameManager->colorForIdx(player.color2));
         }
-        shell->addChild(icon, 3);
+        row->addChild(icon, 3);
 
         auto nameLabel = partyui::addLabel(
-            shell,
+            row,
             player.name,
             "bigFont.fnt",
-            0.29f,
-            {innerLeft + 61.0f, y + 1.0f}
+            0.36f,
+            {67.0f, RowHeight / 2.0f + 1.0f}
         );
-        nameLabel->limitLabelWidth(innerWidth * 0.39f, 0.29f, 0.21f);
+        nameLabel->limitLabelWidth(listSize.width * 0.34f, 0.36f, 0.26f);
+
+        if (player.accountId == state.hostAccountId) {
+            auto crown = partyui::makeSizedSprite(partyui::loadGlobedSprite("icon-crown-small.png"), 17.0f);
+            if (crown) {
+                auto nameWidth = nameLabel->getContentSize().width * nameLabel->getScale();
+                crown->setPosition({
+                    std::min(listSize.width * 0.57f, 67.0f + nameWidth + 11.0f),
+                    RowHeight / 2.0f + 1.0f
+                });
+                row->addChild(crown, 4);
+            }
+        }
 
         std::string status;
         std::string detail;
-        if (player.finished) {
-            status = "FINISHED";
-            detail = "winner";
-        } else if (recentRush) {
-            status = fmt::format("BEST {}%", player.progress);
-            detail = fmt::format("LEVEL {}  |  {}/{}", player.rouletteTarget, player.attemptCount, state.settings.maxAttempts);
+        char const* statusFont = "bigFont.fnt";
+
+        if (recentRush) {
+            if (player.finished) {
+                status = "WINNER";
+                detail = fmt::format("GOAL {}%", state.settings.targetProgress);
+                statusFont = "goldFont.fnt";
+            } else {
+                status = fmt::format("BEST {}%", player.progress);
+                detail = fmt::format(
+                    "LEVEL {}  |  TRY {}/{}",
+                    player.rouletteTarget,
+                    std::min(player.attemptCount + 1, state.settings.maxAttempts),
+                    state.settings.maxAttempts
+                );
+            }
         } else {
-            status = fmt::format("BEST {}%", player.progress);
-            detail = fmt::format("TARGET {}%", player.rouletteTarget);
+            auto score = std::max(player.progress, std::max(0, player.rouletteTarget - 1));
+            if (player.finished) {
+                status = "WINNER";
+                detail = fmt::format("SCORE {}%", state.settings.targetProgress);
+                statusFont = "goldFont.fnt";
+            } else {
+                status = fmt::format("SCORE {}%", score);
+                detail = fmt::format(
+                    "NEXT {}%  |  THIS LEVEL {}%",
+                    player.rouletteTarget,
+                    player.progress
+                );
+            }
         }
 
         auto statusLabel = partyui::addLabel(
-            shell,
+            row,
             status,
-            player.finished ? "goldFont.fnt" : "bigFont.fnt",
-            0.26f,
-            {innerRight - 10.0f, y + 5.0f},
+            statusFont,
+            0.31f,
+            {listSize.width - 10.0f, RowHeight / 2.0f + 6.0f},
             {1.0f, 0.5f}
         );
-        statusLabel->limitLabelWidth(innerWidth * 0.31f, 0.26f, 0.19f);
+        statusLabel->limitLabelWidth(listSize.width * 0.32f, 0.31f, 0.22f);
 
         auto detailLabel = partyui::addLabel(
-            shell,
+            row,
             detail,
-            "chatFont.fnt",
-            0.24f,
-            {innerRight - 10.0f, y - 7.0f},
+            "bigFont.fnt",
+            0.20f,
+            {listSize.width - 10.0f, RowHeight / 2.0f - 7.0f},
             {1.0f, 0.5f}
         );
-        detailLabel->setOpacity(170);
-        detailLabel->limitLabelWidth(innerWidth * 0.39f, 0.24f, 0.17f);
+        detailLabel->setOpacity(190);
+        detailLabel->limitLabelWidth(listSize.width * 0.42f, 0.20f, 0.15f);
     }
 
-    if (players.empty()) {
-        auto empty = partyui::addLabel(
-            shell,
-            "No players",
-            "chatFont.fnt",
-            0.46f,
-            {shellSize.width / 2.0f, 125.0f},
-            {0.5f, 0.5f}
-        );
-        empty->setOpacity(180);
-    } else if (players.size() > shown) {
-        auto more = partyui::addLabel(
-            shell,
-            fmt::format("+{} more players", players.size() - shown),
-            "chatFont.fnt",
-            0.26f,
-            {shellSize.width / 2.0f, 23.0f},
-            {0.5f, 0.5f}
-        );
-        more->setOpacity(150);
+    if (playerCountChanged) {
+        m_scroll->moveToTop();
+        m_lastPlayerCount = players.size();
     }
-
-    return true;
 }
 
 } // namespace gdparty

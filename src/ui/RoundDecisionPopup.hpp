@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Geode/Geode.hpp>
+#include "PartyBaseLayer.hpp"
 
 namespace gdparty {
 
@@ -15,7 +15,7 @@ struct RoundDecisionContext {
     bool goalReached = false;
 };
 
-class RoundDecisionPopup : public cocos2d::CCLayerColor {
+class RoundDecisionPopup : public PartyBaseLayer {
 public:
     static RoundDecisionPopup* create(RoundDecisionContext const& context);
     void show();

@@ -21,11 +21,15 @@ RoundDecisionPopup* RoundDecisionPopup::create(RoundDecisionContext const& conte
 }
 
 bool RoundDecisionPopup::init(RoundDecisionContext const& context) {
-    if (!CCLayerColor::initWithColor(ccc4(0, 0, 0, 178))) {
+    if (!initBase({37, 50, 167})) {
         return false;
     }
 
     m_context = context;
+    if (m_backMenu) {
+        m_backMenu->setVisible(false);
+    }
+
     setTouchEnabled(true);
     setTouchMode(kCCTouchesOneByOne);
     setTouchPriority(-10000);
@@ -35,103 +39,118 @@ bool RoundDecisionPopup::init(RoundDecisionContext const& context) {
 
     auto windowSize = CCDirector::sharedDirector()->getWinSize();
     auto center = ccp(windowSize.width / 2.0f, windowSize.height / 2.0f);
-    auto cardSize = CCSize{392.0f, 178.0f};
+    auto shellSize = CCSize{420.0f, 290.0f};
 
-    auto card = CCScale9Sprite::create("GJ_square02.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
-    card->setContentSize(cardSize);
-    card->setPosition(center);
-    addChild(card, 1);
+    auto shell = CCNode::create();
+    shell->setID("round-shell");
+    shell->setContentSize(shellSize);
+    shell->setAnchorPoint({0.5f, 0.5f});
+    shell->setPosition(center);
+    addChild(shell, 2);
+
+    auto outer = CCScale9Sprite::create("GJ_square02.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
+    outer->setContentSize(shellSize);
+    outer->setPosition({shellSize.width / 2.0f, shellSize.height / 2.0f});
+    shell->addChild(outer, -5);
 
     m_titleLabel = partyui::addLabel(
-        this,
+        shell,
         context.recentRush
-            ? (context.goalReached ? "GOAL REACHED!" : "LEVEL FINISHED")
-            : "ROUND CLEAR",
+            ? (context.goalReached ? "GOAL REACHED!" : "LEVEL COMPLETE")
+            : "ROUND SECURED",
         "goldFont.fnt",
         0.68f,
-        {center.x, center.y + 63.0f},
+        {shellSize.width / 2.0f, shellSize.height - 18.0f},
         {0.5f, 0.5f}
     );
-    m_titleLabel->setZOrder(5);
+    m_titleLabel->limitLabelWidth(330.0f, 0.68f, 0.42f);
 
-    auto infoPanel = CCScale9Sprite::create("square02_001.png", CCRect{0.0f, 0.0f, 80.0f, 80.0f});
-    infoPanel->setContentSize({cardSize.width - 48.0f, 56.0f});
-    infoPanel->setPosition({center.x, center.y + 14.0f});
-    infoPanel->setColor({15, 26, 86});
-    infoPanel->setOpacity(100);
-    addChild(infoPanel, 2);
+    constexpr float InfoLeft = 42.0f;
+    constexpr float InfoBottom = 83.0f;
+    auto infoSize = CCSize{336.0f, 132.0f};
+    partyui::addBlueListFrame(shell, {InfoLeft, InfoBottom}, infoSize);
+
+    auto header = CCLayerColor::create(ccc4(0x28, 0x35, 0x77, 255), infoSize.width, 40.0f);
+    header->setPosition({InfoLeft, InfoBottom + infoSize.height - 40.0f});
+    shell->addChild(header, 2);
+
+    auto modeLabel = partyui::addLabel(
+        header,
+        context.recentRush ? "RECENT RUSH" : "ROULETTE RACE",
+        "bigFont.fnt",
+        0.39f,
+        {12.0f, 20.0f}
+    );
+    modeLabel->limitLabelWidth(150.0f, 0.39f, 0.28f);
+
+    auto goalLabel = partyui::addLabel(
+        header,
+        fmt::format("{} {}%", context.recentRush ? "GOAL" : "TARGET", context.requiredProgress),
+        "goldFont.fnt",
+        0.40f,
+        {infoSize.width - 12.0f, 20.0f},
+        {1.0f, 0.5f}
+    );
+    goalLabel->limitLabelWidth(130.0f, 0.40f, 0.28f);
 
     m_progressLabel = partyui::addLabel(
-        this,
-        fmt::format("{}%", context.achievedProgress),
+        shell,
+        fmt::format("BEST {}%", context.achievedProgress),
         "goldFont.fnt",
-        0.54f,
-        {center.x - 72.0f, center.y + 17.0f},
+        0.58f,
+        {shellSize.width / 2.0f, 142.0f},
         {0.5f, 0.5f}
     );
     m_progressLabel->setZOrder(5);
 
     auto detail = context.recentRush
-        ? fmt::format("GOAL {}%", context.requiredProgress)
-        : fmt::format("TARGET {}%", context.requiredProgress);
+        ? fmt::format("ATTEMPT {} / {}", context.attemptNumber, context.maxAttempts)
+        : fmt::format("ROULETTE TARGET {}%", context.sourceTarget);
     m_detailLabel = partyui::addLabel(
-        this,
+        shell,
         detail,
         "bigFont.fnt",
-        0.31f,
-        {center.x + 58.0f, center.y + 18.0f},
+        0.29f,
+        {shellSize.width / 2.0f, 115.0f},
         {0.5f, 0.5f}
     );
+    m_detailLabel->setOpacity(220);
     m_detailLabel->setZOrder(5);
-
-    auto subDetail = context.recentRush
-        ? fmt::format("attempt {}/{}", context.attemptNumber, context.maxAttempts)
-        : fmt::format("roulette target {}", context.sourceTarget);
-    auto subLabel = partyui::addLabel(
-        this,
-        subDetail,
-        "chatFont.fnt",
-        0.30f,
-        {center.x + 58.0f, center.y + 3.0f},
-        {0.5f, 0.5f}
-    );
-    subLabel->setOpacity(170);
-    subLabel->setZOrder(5);
 
     auto buttonMenu = CCMenu::create();
     buttonMenu->setPosition({0.0f, 0.0f});
-    addChild(buttonMenu, 10);
+    shell->addChild(buttonMenu, 10);
 
     m_nextButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(RoundDecisionPopup::onNextLevel),
         "Next Level",
-        {center.x - 76.0f, center.y - 50.0f},
-        120.0f,
+        {shellSize.width / 2.0f - 67.0f, 43.0f},
+        108.0f,
         "GJ_button_01.png",
-        0.55f
+        0.57f
     );
     m_leaderboardButton = partyui::addTextButton(
         buttonMenu,
         this,
         menu_selector(RoundDecisionPopup::onLeaderboard),
         "Leaderboard",
-        {center.x + 76.0f, center.y - 50.0f},
-        120.0f,
+        {shellSize.width / 2.0f + 67.0f, 43.0f},
+        108.0f,
         "GJ_button_02.png",
-        0.52f
+        0.50f
     );
 
     m_statusLabel = partyui::addLabel(
-        this,
+        shell,
         "",
-        "chatFont.fnt",
-        0.30f,
-        {center.x, center.y - 76.0f},
+        "bigFont.fnt",
+        0.22f,
+        {shellSize.width / 2.0f, 19.0f},
         {0.5f, 0.5f}
     );
-    m_statusLabel->setOpacity(165);
+    m_statusLabel->setOpacity(190);
     m_statusLabel->setZOrder(5);
 
     schedule(schedule_selector(RoundDecisionPopup::tick), 0.12f);
@@ -141,8 +160,21 @@ bool RoundDecisionPopup::init(RoundDecisionContext const& context) {
 
 void RoundDecisionPopup::show() {
     PlatformToolbox::showCursor();
-    if (auto scene = CCDirector::sharedDirector()->getRunningScene()) {
-        scene->addChild(this, 100000);
+    auto scene = CCDirector::sharedDirector()->getRunningScene();
+    if (!scene) {
+        return;
+    }
+
+    scene->addChild(this, 100000);
+
+    if (m_background) {
+        m_background->setOpacity(0);
+        m_background->runAction(CCFadeTo::create(0.16f, 255));
+    }
+
+    if (auto shell = getChildByID("round-shell")) {
+        shell->setScale(0.96f);
+        shell->runAction(CCEaseBackOut::create(CCScaleTo::create(0.18f, 1.0f)));
     }
 }
 
@@ -186,8 +218,8 @@ void RoundDecisionPopup::refresh() {
     if (m_context.recentRush) {
         if (m_context.goalReached || state.phase == PartyPhase::Results) {
             m_nextButton->setVisible(false);
-            m_leaderboardButton->setPositionX(CCDirector::sharedDirector()->getWinSize().width / 2.0f);
-            m_statusLabel->setString("Goal secured");
+            m_leaderboardButton->setPositionX(210.0f);
+            m_statusLabel->setString("GOAL SECURED");
             return;
         }
 
@@ -196,13 +228,13 @@ void RoundDecisionPopup::refresh() {
             player->currentLevelId != m_context.sourceLevelId;
         m_nextButton->setVisible(true);
         m_nextButton->setEnabled(nextReady);
-        m_statusLabel->setString(nextReady ? "Next level ready" : "Finding next level...");
+        m_statusLabel->setString(nextReady ? "NEXT LEVEL READY" : "FINDING NEXT LEVEL...");
         return;
     }
 
     if (m_waitingForRouletteAdvance) {
         m_nextButton->setEnabled(false);
-        m_statusLabel->setString("Finding next level...");
+        m_statusLabel->setString("FINDING NEXT LEVEL...");
     } else {
         m_nextButton->setEnabled(true);
         m_statusLabel->setString("");

@@ -3,6 +3,12 @@
 #include "../core/PartyTypes.hpp"
 
 #include <Geode/Geode.hpp>
+#include <Geode/ui/General.hpp>
+
+#include <algorithm>
+#include <array>
+#include <filesystem>
+#include <string>
 
 using namespace geode::prelude;
 
@@ -53,9 +59,10 @@ inline CCMenuItemSpriteExtra* addTextButton(
     CCPoint position,
     float width = 88.0f,
     char const* texture = "GJ_button_01.png",
-    float textScale = 0.55f
+    float textScale = 0.55f,
+    float height = 28.0f
 ) {
-    auto sprite = ButtonSprite::create(text, width, true, "bigFont.fnt", texture, 28.0f, textScale);
+    auto sprite = ButtonSprite::create(text, width, true, "bigFont.fnt", texture, height, textScale);
     auto button = CCMenuItemSpriteExtra::create(sprite, target, callback);
     button->setPosition(position);
     menu->addChild(button);
@@ -90,6 +97,92 @@ inline CCMenuItemToggler* addToggle(
     toggle->setPosition(position);
     menu->addChild(toggle);
     return toggle;
+}
+
+inline CCSprite* loadGlobedSprite(char const* fileName) {
+    if (!fileName || !*fileName) {
+        return nullptr;
+    }
+
+    auto globed = Loader::get()->getInstalledMod("dankmeme.globed2");
+    if (!globed) {
+        return nullptr;
+    }
+
+    auto resources = globed->getResourcesDir();
+    std::array<std::filesystem::path, 2> candidates = {
+        resources / fileName,
+        resources / "menu" / fileName
+    };
+
+    for (auto const& path : candidates) {
+        if (auto sprite = CCSprite::create(path.string().c_str())) {
+            return sprite;
+        }
+    }
+
+    return nullptr;
+}
+
+inline CCSprite* makeSizedSprite(CCSprite* sprite, float targetSize) {
+    if (!sprite) {
+        return nullptr;
+    }
+
+    auto size = sprite->getContentSize();
+    auto largestSide = std::max(size.width, size.height);
+    if (largestSide > 0.0f) {
+        sprite->setScale(targetSize / largestSide);
+    }
+    return sprite;
+}
+
+inline CCSprite* makeGlobedSprite(
+    char const* globedTexture,
+    char const* fallbackFrame,
+    float targetSize
+) {
+    auto sprite = loadGlobedSprite(globedTexture);
+    if (!sprite && fallbackFrame && *fallbackFrame) {
+        sprite = CCSprite::createWithSpriteFrameName(fallbackFrame);
+    }
+    return makeSizedSprite(sprite, targetSize);
+}
+
+inline CCMenuItemSpriteExtra* addIconButton(
+    CCNode* menu,
+    CCObject* target,
+    SEL_MenuHandler callback,
+    char const* globedTexture,
+    char const* fallbackFrame,
+    CCPoint position,
+    float targetSize
+) {
+    auto sprite = makeGlobedSprite(globedTexture, fallbackFrame, targetSize);
+    if (!sprite) {
+        return nullptr;
+    }
+
+    auto button = CCMenuItemSpriteExtra::create(sprite, target, callback);
+    button->setPosition(position);
+    menu->addChild(button);
+    return button;
+}
+
+inline void addBlueListFrame(CCNode* parent, CCPoint bottomLeft, CCSize size) {
+    auto background = CCLayerColor::create(ccc4(0x33, 0x44, 0x99, 255), size.width, size.height);
+    background->setPosition(bottomLeft);
+    parent->addChild(background, 0);
+
+    auto border = ListBorders::create();
+    if (!border) {
+        return;
+    }
+
+    border->setSpriteFrames("GJ_commentTop2_001.png", "GJ_commentSide2_001.png");
+    border->setContentSize({size.width + 4.0f, size.height + 6.0f});
+    border->setPosition({bottomLeft.x + size.width / 2.0f, bottomLeft.y + size.height / 2.0f});
+    parent->addChild(border, 6);
 }
 
 inline char const* difficultyName(DifficultyFilter difficulty) {
